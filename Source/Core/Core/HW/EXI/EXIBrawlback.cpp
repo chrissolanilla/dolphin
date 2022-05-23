@@ -1192,6 +1192,8 @@ void CEXIBrawlback::handleStartReplaysStruct(u8* payload)
   StartReplay startReplay;
   std::memcpy(&startReplay, payload, sizeof(StartReplay));
 
+  this->name = std::string(startReplay.nameBuffer, startReplay.nameBuffer + startReplay.nameSize);
+
   auto start = this->replayJson["start"];
   for (int i = 0; i < startReplay.numPlayers; i++)
   {
@@ -1208,6 +1210,7 @@ void CEXIBrawlback::handleStartReplaysStruct(u8* payload)
   start["stage"] = startReplay.stage;
   start["randomSeed"] = startReplay.randomSeed;
   start["otherRandomSeed"] = startReplay.otherRandomSeed;
+  start["firstFrame"] = startReplay.firstFrame;
 }
 
 void CEXIBrawlback::handleReplaysStruct(u8* payload)
@@ -1260,12 +1263,7 @@ void CEXIBrawlback::handleReplaysStruct(u8* payload)
 void CEXIBrawlback::handleEndOfReplay()
 {
   auto ubjson = json::to_ubjson(this->replayJson);
-
-  const auto p1 = std::chrono::system_clock::now();
-  const auto timestamp =
-      std::chrono::duration_cast<std::chrono::seconds>(p1.time_since_epoch()).count();
-  writeToFile("replay_" + std::to_string(timestamp) + ".brba", ubjson.data(),
-              ubjson.size());
+  writeToFile(this->name + ".brba", ubjson.data(), ubjson.size());
 }
 
 // recieve data from game into emulator

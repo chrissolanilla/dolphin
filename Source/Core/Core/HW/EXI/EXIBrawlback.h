@@ -45,6 +45,7 @@ private:
 
   // --- Replays
   json replayJson;
+  std::string name;
 
   // --- Net
   void NetplayThreadFunc();
