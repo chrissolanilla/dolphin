@@ -1194,14 +1194,16 @@ void CEXIBrawlback::handleStartReplaysStruct(u8* payload)
 
   this->name = std::string(startReplay.nameBuffer, startReplay.nameBuffer + startReplay.nameSize);
 
-  auto start = this->replayJson["start"];
+  auto& start = this->replayJson["start"];
   for (int i = 0; i < startReplay.numPlayers; i++)
   {
-    auto player = start["players"][i];
+    auto& player = start["players"][i];
+    auto& position = player["startPlayerPos"];
+
     auto replayPlayer = startReplay.players[i];
-    player["ftKind"] = replayPlayer.fighterKind;
-    auto position = player["startPlayerPos"];
     auto replayPosition = replayPlayer.startPlayer;
+	
+    player["ftKind"] = replayPlayer.fighterKind;
 
     position["x"] = swap_endian(replayPosition.xPos);
     position["y"] = swap_endian(replayPosition.yPos);
@@ -1222,7 +1224,7 @@ void CEXIBrawlback::handleReplaysStruct(u8* payload)
   this->replayJson[frameName]["persistentFrameCounter"] = swap_endian(replay.persistentFrameCounter);
   for (int i = 0; i < replay.numItems; i++)
   {
-    auto item = this->replayJson[frameName]["items"][i];
+    auto& item = this->replayJson[frameName]["items"][i];
     auto replayItem = replay.items[i];
 
     item["itemId"] = swap_endian(replayItem.itemId);
@@ -1230,9 +1232,9 @@ void CEXIBrawlback::handleReplaysStruct(u8* payload)
   }
   for (int i = 0; i < replay.numPlayers; i++)
   {
-    auto player = this->replayJson[frameName]["players"][i];
-    auto inputs = player["inputs"];
-    auto position = player["position"];
+    auto& player = this->replayJson[frameName]["players"][i];
+    auto& inputs = player["inputs"];
+    auto& position = player["position"];
 
     auto replayPlayer = replay.players[i];
     auto replayInputs = replayPlayer.inputs;
@@ -1262,8 +1264,11 @@ void CEXIBrawlback::handleReplaysStruct(u8* payload)
 
 void CEXIBrawlback::handleEndOfReplay()
 {
-  auto ubjson = json::to_ubjson(this->replayJson);
-  writeToFile(this->name + ".brba", ubjson.data(), ubjson.size());
+  if (this->name.length() > 0)
+  {
+    auto ubjson = json::to_ubjson(this->replayJson);
+    writeToFile(this->name + ".brba", ubjson.data(), ubjson.size());
+  }
 }
 
 // recieve data from game into emulator
