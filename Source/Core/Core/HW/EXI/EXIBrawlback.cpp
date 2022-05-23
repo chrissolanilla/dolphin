@@ -1219,17 +1219,17 @@ void CEXIBrawlback::handleReplaysStruct(u8* payload)
   this->replayJson[frameName]["persistentFrameCounter"] = replay.persistentFrameCounter;
   for (int i = 0; i < replay.numItems; i++)
   {
-    auto item = this->replayJson[frameName]["items"][i];
-    auto replayItem = replay.items[i];
+    auto& item = this->replayJson[frameName]["items"][i];
+    auto& replayItem = replay.items[i];
 
     item["itemId"] = replayItem.itemId;
     item["itemVariant"] = replayItem.itemVariant;
   }
   for (int i = 0; i < replay.numPlayers; i++)
   {
-    auto player = this->replayJson[frameName]["players"][i];
-    auto inputs = player["inputs"];
-    auto position = player["position"];
+    auto& player = this->replayJson[frameName]["players"][i];
+    auto& inputs = player["inputs"];
+    auto& position = player["position"];
 
     auto replayPlayer = replay.players[i];
     auto replayInputs = replayPlayer.inputs;
@@ -1262,10 +1262,148 @@ void CEXIBrawlback::handleEndOfReplay()
   auto ubjson = json::to_ubjson(this->replayJson);
 
   const auto p1 = std::chrono::system_clock::now();
-  const auto timestamp =
-      std::chrono::duration_cast<std::chrono::seconds>(p1.time_since_epoch()).count();
-  writeToFile("replay_" + std::to_string(timestamp) + ".brba", ubjson.data(),
-              ubjson.size());
+  const auto timestamp = std::chrono::duration_cast<std::chrono::seconds>(p1.time_since_epoch()).count();
+  writeToFile("replay_" + std::to_string(timestamp) + ".brba", ubjson.data(), ubjson.size());
+}
+
+void CEXIBrawlback::handleGetStartReplay(int index)
+{
+  StartReplay startReplay;
+  auto indexReplay = this->getReplayJsonAtIndex(index);
+
+  auto start = this->replayJson["start"];
+
+  startReplay.stage = start["stage"];
+  startReplay.randomSeed = start["randomSeed"];
+  startReplay.otherRandomSeed = start["otherRandomSeed"];
+  startReplay.numPlayers = start["players"].size();
+  for (int i = 0; i < startReplay.numPlayers; i++)
+  {
+    auto player = start["players"][i];
+    auto position = player["startPlayerPos"];
+
+    auto& replayPlayer = startReplay.players[i];
+    auto& replayPosition = replayPlayer.startPlayer;
+
+    replayPlayer.fighterKind = player["ftKind"];
+
+	replayPosition.xPos = position["x"];
+    replayPosition.yPos = position["y"];
+    replayPosition.zPos = position["z"];
+  }
+  SendCmdToGame(CMD_GET_START_REPLAY, &startReplay);
+}
+
+void CEXIBrawlback::handleGetNextFrame(u8* payload, int index)
+{
+  int frameNumber;
+  std::memcpy(&frameNumber, payload, sizeof(int));
+
+  auto indexJson = this->getReplayJsonAtIndex(index);
+  if (indexJson == json({}))
+  {
+    SendCmdToGame(CMD_BAD_INDEX);
+    return;
+  }
+  const auto frameName = fmt::format("frame_{}", frameNumber);
+
+  auto frameJson = indexJson[frameName];
+  Replay replay;
+
+  replay.persistentFrameCounter = frameJson["persistentFrameCounter"];
+  replay.frameCounter = frameNumber;
+  replay.numItems = frameJson["items"].size();
+  replay.numPlayers = frameJson["players"].size();
+
+  for (int i = 0; i < replay.numItems; i++)
+  {
+    auto item = frameJson["items"][i];
+
+	auto& replayItems = replay.items[i];
+
+	replayItems.itemId = item["itemId"];
+    replayItems.itemVariant = item["itemVarient"];
+  }
+  for (int i = 0; i < replay.numPlayers; i++)
+  {
+    auto replayPlayer = frameJson["players"][i];
+    auto inputs = replayPlayer["inputs"];
+    auto position = replayPlayer["position"];
+
+	auto& replayPlayers = replay.players[i];
+    auto& replayInputs = replayPlayers.inputs;
+	auto& replayPos = replayPlayers.pos;
+
+	replayPlayers.actionState = replayPlayer["actionState"];
+    replayPlayers.damage = replayPlayer["damage"];
+	replayPlayers.stockCount = replayPlayer["stockCount"];
+
+    replayInputs.attack = inputs["attack"];
+	replayInputs.cStick = inputs["cStick"];
+    replayInputs.dTaunt = inputs["dTaunt"];
+	replayInputs.jump = inputs["jump"];
+    replayInputs.leftStickX = inputs["leftStickX"];
+	replayInputs.leftStickY = inputs["leftStickY"];
+    replayInputs.shield = inputs["shield"];
+	replayInputs.special = inputs["special"];
+    replayInputs.sTaunt = inputs["sTaunt"];
+	replayInputs.tapJump = inputs["tapJump"];
+    replayInputs.uTaunt = inputs["uTaunt"];
+
+	replayPos.xPos = position["x"];
+    replayPos.yPos = position["y"];
+	replayPos.zPos = position["z"];
+  }
+
+  SendCmdToGame(CMD_GET_NEXT_FRAME, &replay);
+}
+
+void CEXIBrawlback::handleNumReplays()
+{
+  auto numReplays = getNumReplays(std::filesystem::current_path().string());
+  SendCmdToGame(CMD_GET_NUM_REPLAYS, &numReplays);
+}
+
+void CEXIBrawlback::handleSetReplayIndex(u8* payload)
+{
+  std::memcpy(&this->curIndex, payload, sizeof(int));
+}
+
+json CEXIBrawlback::getReplayJsonAtIndex(int index)
+{
+  auto replays = getReplays(std::filesystem::current_path().string());
+  if (index > replays.size() - 1)
+  {
+    return json({});
+  }
+  return json::from_ubjson(replays[index]);
+}
+
+size_t CEXIBrawlback::getNumReplays(std::string path)
+{
+  int numReplayFiles = 0;
+  for (auto& p : fs::directory_iterator(path))
+  {
+    if (p.path().extension().string() == "brba")
+    {
+      numReplayFiles++;
+    }
+  }
+  return numReplayFiles;
+}
+
+std::vector<std::vector<u8>> CEXIBrawlback::getReplays(std::string path)
+{
+  std::vector<std::vector<u8>> replays;
+  for (auto& p : fs::directory_iterator(path))
+  {
+    if (p.path().extension().string() == "brba")
+    {
+      std::vector<u8> replay = read_vector_from_disk(p.path().string());
+      replays.push_back(replay);
+    }
+  }
+  return replays;
 }
 
 // recieve data from game into emulator
@@ -1322,6 +1460,18 @@ void CEXIBrawlback::DMAWrite(u32 address, u32 size)
     break;
   case CMD_REPLAYS_REPLAYS_END:
     handleEndOfReplay();
+    break;
+  case CMD_GET_NUM_REPLAYS:
+    handleNumReplays();
+	break;
+  case CMD_SET_CUR_INDEX:
+    handleSetReplayIndex(payload);
+    break;
+  case CMD_GET_START_REPLAY:
+    handleGetStartReplay(this->curIndex);
+	break;
+  case CMD_GET_NEXT_FRAME:
+    handleGetNextFrame(payload, this->curIndex);
     break;
 
   // just using these CMD's to track frame times lol

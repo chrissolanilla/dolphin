@@ -36,6 +36,11 @@ private:
   void handleStartReplaysStruct(u8* payload);
   void handleReplaysStruct(u8* payload);
   void handleEndOfReplay();
+  void handleGetNextFrame(u8* payload, int index);
+  void handleNumReplays();
+  void handleSetReplayIndex(u8* payload);
+  void handleGetStartReplay(int index);
+
 
   template <typename T>
   void SendCmdToGame(EXICommand cmd, T* payload);
@@ -45,6 +50,11 @@ private:
 
   // --- Replays
   json replayJson;
+  int curIndex;
+  std::vector<std::vector<u8>> getReplays(std::string path);
+  size_t getNumReplays(std::string path);
+  json getReplayJsonAtIndex(int index);
+  // --------------------------------
 
   // --- Net
   void NetplayThreadFunc();
