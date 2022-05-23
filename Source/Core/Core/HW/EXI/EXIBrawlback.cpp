@@ -1203,13 +1203,13 @@ void CEXIBrawlback::handleStartReplaysStruct(u8* payload)
     auto position = player["startPlayerPos"];
     auto replayPosition = replayPlayer.startPlayer;
 
-    position["x"] = replayPosition.xPos;
-    position["y"] = replayPosition.yPos;
-    position["z"] = replayPosition.zPos;
+    position["x"] = swap_endian(replayPosition.xPos);
+    position["y"] = swap_endian(replayPosition.yPos);
+    position["z"] = swap_endian(replayPosition.zPos);
   }
   start["stage"] = startReplay.stage;
-  start["randomSeed"] = startReplay.randomSeed;
-  start["otherRandomSeed"] = startReplay.otherRandomSeed;
+  start["randomSeed"] = swap_endian(startReplay.randomSeed);
+  start["otherRandomSeed"] = swap_endian(startReplay.otherRandomSeed);
   start["firstFrame"] = startReplay.firstFrame;
 }
 
@@ -1218,15 +1218,15 @@ void CEXIBrawlback::handleReplaysStruct(u8* payload)
   Replay replay;
   std::memcpy(&replay, payload, sizeof(Replay));
 
-  const auto frameName = fmt::format("frame_{}", replay.frameCounter);
-  this->replayJson[frameName]["persistentFrameCounter"] = replay.persistentFrameCounter;
+  const auto frameName = fmt::format("frame_{}", swap_endian(replay.frameCounter));
+  this->replayJson[frameName]["persistentFrameCounter"] = swap_endian(replay.persistentFrameCounter);
   for (int i = 0; i < replay.numItems; i++)
   {
     auto item = this->replayJson[frameName]["items"][i];
     auto replayItem = replay.items[i];
 
-    item["itemId"] = replayItem.itemId;
-    item["itemVariant"] = replayItem.itemVariant;
+    item["itemId"] = swap_endian(replayItem.itemId);
+    item["itemVariant"] = swap_endian(replayItem.itemVariant);
   }
   for (int i = 0; i < replay.numPlayers; i++)
   {
@@ -1238,25 +1238,25 @@ void CEXIBrawlback::handleReplaysStruct(u8* payload)
     auto replayInputs = replayPlayer.inputs;
     auto replayPosition = replayPlayer.pos;
 
-    player["actionState"] = replayPlayer.actionState;
-    player["damage"] = replayPlayer.damage;
-    player["stockCount"] = replayPlayer.stockCount;
+    player["actionState"] = swap_endian(replayPlayer.actionState);
+    player["damage"] = swap_endian(replayPlayer.damage);
+    player["stockCount"] = swap_endian(replayPlayer.stockCount);
 
-    inputs["attack"] = replayInputs.attack;
-    inputs["cStick"] = replayInputs.cStick;
-    inputs["dTaunt"] = replayInputs.dTaunt;
-    inputs["jump"] = replayInputs.jump;
-    inputs["leftStickX"] = replayInputs.leftStickX;
-    inputs["leftStickY"] = replayInputs.leftStickY;
-    inputs["shield"] = replayInputs.shield;
-    inputs["special"] = replayInputs.special;
-    inputs["sTaunt"] = replayInputs.sTaunt;
-    inputs["tapJump"] = replayInputs.tapJump;
-    inputs["uTaunt"] = replayInputs.uTaunt;
+    inputs["attack"] = swap_endian(replayInputs.attack);
+    inputs["cStick"] = swap_endian(replayInputs.cStick);
+    inputs["dTaunt"] = swap_endian(replayInputs.dTaunt);
+    inputs["jump"] = swap_endian(replayInputs.jump);
+    inputs["leftStickX"] = swap_endian(replayInputs.leftStickX);
+    inputs["leftStickY"] = swap_endian(replayInputs.leftStickY);
+    inputs["shield"] = swap_endian(replayInputs.shield);
+    inputs["special"] = swap_endian(replayInputs.special);
+    inputs["sTaunt"] = swap_endian(replayInputs.sTaunt);
+    inputs["tapJump"] = swap_endian(replayInputs.tapJump);
+    inputs["uTaunt"] = swap_endian(replayInputs.uTaunt);
 
-    position["x"] = replayPosition.xPos;
-    position["y"] = replayPosition.yPos;
-    position["z"] = replayPosition.zPos;
+    position["x"] = swap_endian(replayPosition.xPos);
+    position["y"] = swap_endian(replayPosition.yPos);
+    position["z"] = swap_endian(replayPosition.zPos);
   }
 }
 
