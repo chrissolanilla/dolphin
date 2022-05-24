@@ -1195,7 +1195,9 @@ void CEXIBrawlback::handleStartReplaysStruct(u8* payload)
     StartReplay startReplay;
     std::memcpy(&startReplay, payload, sizeof(StartReplay));
 
-    auto& start = this->replayJson["start"];
+    this->curName = std::string(startReplay.nameBuffer, startReplay.nameBuffer + startReplay.nameSize);
+
+    auto& start = this->curReplayJson["start"];
     for (int i = 0; i < startReplay.numPlayers; i++)
     {
       auto& player = start["players"][i];
@@ -1206,13 +1208,14 @@ void CEXIBrawlback::handleStartReplaysStruct(u8* payload)
 
       player["ftKind"] = replayPlayer.fighterKind;
 
-      position["x"] = replayPosition.xPos;
-      position["y"] = replayPosition.yPos;
-      position["z"] = replayPosition.zPos;
+      position["x"] = swap_endian(replayPosition.xPos);
+      position["y"] = swap_endian(replayPosition.yPos);
+      position["z"] = swap_endian(replayPosition.zPos);
     }
+    start["firstFrame"] = startReplay.firstFrame;
     start["stage"] = startReplay.stage;
-    start["randomSeed"] = startReplay.randomSeed;
-    start["otherRandomSeed"] = startReplay.otherRandomSeed;
+    start["randomSeed"] = swap_endian(startReplay.randomSeed);
+    start["otherRandomSeed"] = swap_endian(startReplay.otherRandomSeed);
   }
 }
 
@@ -1224,18 +1227,18 @@ void CEXIBrawlback::handleReplaysStruct(u8* payload)
     std::memcpy(&replay, payload, sizeof(Replay));
 
     const auto frameName = fmt::format("frame_{}", replay.frameCounter);
-    this->replayJson[frameName]["persistentFrameCounter"] = replay.persistentFrameCounter;
+    this->curReplayJson[frameName]["persistentFrameCounter"] = swap_endian(replay.persistentFrameCounter);
     for (int i = 0; i < replay.numItems; i++)
     {
-      auto& item = this->replayJson[frameName]["items"][i];
+      auto& item = this->curReplayJson[frameName]["items"][i];
       auto replayItem = replay.items[i];
 
-      item["itemId"] = replayItem.itemId;
-      item["itemVariant"] = replayItem.itemVariant;
+      item["itemId"] = swap_endian(replayItem.itemId);
+      item["itemVariant"] = swap_endian(replayItem.itemVariant);
     }
     for (int i = 0; i < replay.numPlayers; i++)
     {
-      auto& player = this->replayJson[frameName]["players"][i];
+      auto& player = this->curReplayJson[frameName]["players"][i];
       auto& inputs = player["inputs"];
       auto& position = player["position"];
 
@@ -1243,25 +1246,25 @@ void CEXIBrawlback::handleReplaysStruct(u8* payload)
       auto replayInputs = replayPlayer.inputs;
       auto replayPosition = replayPlayer.pos;
 
-      player["actionState"] = replayPlayer.actionState;
-      player["damage"] = replayPlayer.damage;
+      player["actionState"] = swap_endian(replayPlayer.actionState);
+      player["damage"] = swap_endian(replayPlayer.damage);
       player["stockCount"] = replayPlayer.stockCount;
 
-      inputs["attack"] = replayInputs.attack;
-      inputs["cStick"] = replayInputs.cStick;
-      inputs["dTaunt"] = replayInputs.dTaunt;
-      inputs["jump"] = replayInputs.jump;
-      inputs["leftStickX"] = replayInputs.leftStickX;
-      inputs["leftStickY"] = replayInputs.leftStickY;
-      inputs["shield"] = replayInputs.shield;
-      inputs["special"] = replayInputs.special;
-      inputs["sTaunt"] = replayInputs.sTaunt;
-      inputs["tapJump"] = replayInputs.tapJump;
-      inputs["uTaunt"] = replayInputs.uTaunt;
+      inputs["attack"] = swap_endian(replayInputs.attack);
+      inputs["cStick"] = swap_endian(replayInputs.cStick);
+      inputs["dTaunt"] = swap_endian(replayInputs.dTaunt);
+      inputs["jump"] = swap_endian(replayInputs.jump);
+      inputs["leftStickX"] = swap_endian(replayInputs.leftStickX);
+      inputs["leftStickY"] = swap_endian(replayInputs.leftStickY);
+      inputs["shield"] = swap_endian(replayInputs.shield);
+      inputs["special"] = swap_endian(replayInputs.special);
+      inputs["sTaunt"] = swap_endian(replayInputs.sTaunt);
+      inputs["tapJump"] = swap_endian(replayInputs.tapJump);
+      inputs["uTaunt"] = swap_endian(replayInputs.uTaunt);
 
-      position["x"] = replayPosition.xPos;
-      position["y"] = replayPosition.yPos;
-      position["z"] = replayPosition.zPos;
+      position["x"] = swap_endian(replayPosition.xPos);
+      position["y"] = swap_endian(replayPosition.yPos);
+      position["z"] = swap_endian(replayPosition.zPos);
     }
   }
 }
@@ -1270,11 +1273,8 @@ void CEXIBrawlback::handleEndOfReplay()
 {
   if (SConfig::GetInstance().m_brawlbackSaveReplays)
   {
-    auto ubjson = json::to_ubjson(this->replayJson);
-
-    const auto p1 = std::chrono::system_clock::now();
-    const auto timestamp = std::chrono::duration_cast<std::chrono::seconds>(p1.time_since_epoch()).count();
-    writeToFile(SConfig::GetInstance().m_brawlbackReplayDir + "/replay_" + std::to_string(timestamp) + ".brba", ubjson.data(), ubjson.size());
+    auto ubjson = json::to_ubjson(this->curReplayJson);
+    writeToFile(SConfig::GetInstance().m_brawlbackReplayDir + "/" + this->curName + ".brba", ubjson.data(), ubjson.size());
   }
 }
 
@@ -1282,13 +1282,19 @@ void CEXIBrawlback::handleGetStartReplay(int index)
 {
   StartReplay startReplay;
   auto indexReplay = this->getReplayJsonAtIndex(index);
+  if (indexReplay == json({}))
+  {
+    SendCmdToGame(CMD_BAD_INDEX);
+    return;
+  }
+  auto start = indexReplay["start"];
 
-  auto start = this->replayJson["start"];
-
+  startReplay.firstFrame = start["firstFrame"];
   startReplay.stage = start["stage"];
   startReplay.randomSeed = start["randomSeed"];
   startReplay.otherRandomSeed = start["otherRandomSeed"];
   startReplay.numPlayers = (u8)start["players"].size();
+
   for (int i = 0; i < startReplay.numPlayers; i++)
   {
     auto player = start["players"][i];
@@ -1310,6 +1316,7 @@ void CEXIBrawlback::handleGetNextFrame(u8* payload, int index)
 {
   int frameNumber;
   std::memcpy(&frameNumber, payload, sizeof(int));
+  frameNumber = swap_endian(frameNumber);
 
   auto indexJson = this->getReplayJsonAtIndex(index);
   if (indexJson == json({}))
@@ -1409,7 +1416,7 @@ std::vector<std::vector<u8>> CEXIBrawlback::getReplays(std::string path)
   std::vector<std::vector<u8>> replays;
   for (auto& p : fs::directory_iterator(path))
   {
-    if (p.path().extension().string() == "brba")
+    if (p.path().extension().string() == ".brba")
     {
       std::vector<u8> replay = read_vector_from_disk(p.path().string());
       replays.push_back(replay);

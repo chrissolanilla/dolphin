@@ -49,8 +49,9 @@ private:
   // -------------------------------
 
   // --- Replays
-  json replayJson;
+  json curReplayJson;
   int curIndex;
+  std::string curName;
   std::vector<std::vector<u8>> getReplays(std::string path);
   u8 getNumReplays(std::string path);
   json getReplayJsonAtIndex(int index);
