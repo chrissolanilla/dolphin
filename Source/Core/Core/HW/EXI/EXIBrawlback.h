@@ -52,7 +52,7 @@ private:
   json replayJson;
   int curIndex;
   std::vector<std::vector<u8>> getReplays(std::string path);
-  size_t getNumReplays(std::string path);
+  u8 getNumReplays(std::string path);
   json getReplayJsonAtIndex(int index);
   // --------------------------------
 
