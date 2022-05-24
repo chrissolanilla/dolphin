@@ -44,8 +44,11 @@ private:
   // -------------------------------
 
   // --- Replays
-  json replayJson;
-  std::string name;
+  void fixStartReplayEndianness(StartReplay& startReplay);
+  void fixReplayEndianness(Replay& replay);
+  json curReplayJson;
+  std::string curReplayName;
+  // -------------------------------
 
   // --- Net
   void NetplayThreadFunc();
