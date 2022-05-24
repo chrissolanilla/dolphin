@@ -1190,14 +1190,14 @@ void CEXIBrawlback::handleStartMatch(u8* payload)
 
 void CEXIBrawlback::fixStartReplayEndianness(StartReplay& startReplay)
 {
-  swap_endian(startReplay.firstFrame);
-  swap_endian(startReplay.otherRandomSeed);
-  swap_endian(startReplay.randomSeed);
+  startReplay.firstFrame = swap_endian(startReplay.firstFrame);
+  startReplay.otherRandomSeed = swap_endian(startReplay.otherRandomSeed);
+  startReplay.randomSeed = swap_endian(startReplay.randomSeed);
   for (int i = 0; i < startReplay.numPlayers; i++)
   {
-    swap_endian(startReplay.players[i].startPlayer.xPos);
-    swap_endian(startReplay.players[i].startPlayer.yPos);
-    swap_endian(startReplay.players[i].startPlayer.zPos);
+    startReplay.players[i].startPlayer.xPos = swap_endian(startReplay.players[i].startPlayer.xPos);
+    startReplay.players[i].startPlayer.yPos = swap_endian(startReplay.players[i].startPlayer.yPos);
+    startReplay.players[i].startPlayer.zPos = swap_endian(startReplay.players[i].startPlayer.zPos);
   }
 }
 
@@ -1235,34 +1235,34 @@ void CEXIBrawlback::handleStartReplaysStruct(u8* payload)
 
 void CEXIBrawlback::fixReplayEndianness(Replay& replay)
 {
-  swap_endian(replay.frameCounter);
-  swap_endian(replay.persistentFrameCounter);
+  replay.frameCounter = swap_endian(replay.frameCounter);
+  replay.persistentFrameCounter = swap_endian(replay.persistentFrameCounter);
   for (int i = 0; i < replay.numItems; i++)
   {
-    swap_endian(replay.items[i].itemId);
-    swap_endian(replay.items[i].itemVariant);
+    replay.items[i].itemId = swap_endian(replay.items[i].itemId);
+    replay.items[i].itemVariant = swap_endian(replay.items[i].itemVariant);
   }
   for (int i = 0; i < replay.numPlayers; i++)
   {
-    swap_endian(replay.players[i].actionState);
-    swap_endian(replay.players[i].damage);
-    swap_endian(replay.players[i].stockCount);
+    replay.players[i].actionState = swap_endian(replay.players[i].actionState);
+    replay.players[i].damage = swap_endian(replay.players[i].damage);
+    replay.players[i].stockCount = swap_endian(replay.players[i].stockCount);
 
-    swap_endian(replay.players[i].inputs.attack);
-    swap_endian(replay.players[i].inputs.cStick);
-    swap_endian(replay.players[i].inputs.dTaunt);
-    swap_endian(replay.players[i].inputs.jump);
-    swap_endian(replay.players[i].inputs.leftStickX);
-    swap_endian(replay.players[i].inputs.leftStickY);
-    swap_endian(replay.players[i].inputs.shield);
-    swap_endian(replay.players[i].inputs.special);
-    swap_endian(replay.players[i].inputs.sTaunt);
-    swap_endian(replay.players[i].inputs.tapJump);
-    swap_endian(replay.players[i].inputs.uTaunt);
+    replay.players[i].inputs.attack = swap_endian(replay.players[i].inputs.attack);
+    replay.players[i].inputs.cStick = swap_endian(replay.players[i].inputs.cStick);
+    replay.players[i].inputs.dTaunt = swap_endian(replay.players[i].inputs.dTaunt);
+    replay.players[i].inputs.jump = swap_endian(replay.players[i].inputs.jump);
+    replay.players[i].inputs.leftStickX = swap_endian(replay.players[i].inputs.leftStickX);
+    replay.players[i].inputs.leftStickY = swap_endian(replay.players[i].inputs.leftStickY);
+    replay.players[i].inputs.shield = swap_endian(replay.players[i].inputs.shield);
+    replay.players[i].inputs.special = swap_endian(replay.players[i].inputs.special);
+    replay.players[i].inputs.sTaunt = swap_endian(replay.players[i].inputs.sTaunt);
+    replay.players[i].inputs.tapJump = swap_endian(replay.players[i].inputs.tapJump);
+    replay.players[i].inputs.uTaunt = swap_endian(replay.players[i].inputs.uTaunt);
 
-    swap_endian(replay.players[i].pos.xPos);
-    swap_endian(replay.players[i].pos.yPos);
-    swap_endian(replay.players[i].pos.zPos);
+    replay.players[i].pos.xPos = swap_endian(replay.players[i].pos.xPos);
+    replay.players[i].pos.yPos = swap_endian(replay.players[i].pos.yPos);
+    replay.players[i].pos.zPos = swap_endian(replay.players[i].pos.zPos);
   }
 }
 
@@ -1363,7 +1363,7 @@ void CEXIBrawlback::handleGetNextFrame(u8* payload, int index)
 {
   int frameNumber;
   std::memcpy(&frameNumber, payload, sizeof(int));
-  frameNumber = swap_endian(frameNumber);
+  swap_endian(frameNumber);
 
   auto indexJson = this->getReplayJsonAtIndex(index);
   if (indexJson == json({}))
