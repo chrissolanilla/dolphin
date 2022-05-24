@@ -49,13 +49,15 @@ private:
   // -------------------------------
 
   // --- Replays
-  json curReplayJson;
-  int curIndex;
-  std::string curName;
+  void fixStartReplayEndianness(StartReplay& startReplay);
+  void fixReplayEndianness(Replay& replay);
   std::vector<std::vector<u8>> getReplays(std::string path);
   u8 getNumReplays(std::string path);
   json getReplayJsonAtIndex(int index);
-  // --------------------------------
+  int curIndex;
+  json curReplayJson;
+  std::string curReplayName;
+  // -------------------------------
 
   // --- Net
   void NetplayThreadFunc();
