@@ -1208,8 +1208,7 @@ void CEXIBrawlback::handleStartReplaysStruct(u8* payload)
     StartReplay startReplay;
     std::memcpy(&startReplay, payload, sizeof(StartReplay));
 
-    this->curReplayName =
-        std::string(startReplay.nameBuffer, startReplay.nameBuffer + startReplay.nameSize);
+    this->curReplayName = std::string(startReplay.nameBuffer, startReplay.nameBuffer + startReplay.nameSize);
 
     auto& start = this->curReplayJson["start"];
     for (int i = 0; i < startReplay.numPlayers; i++)
@@ -1329,13 +1328,16 @@ void CEXIBrawlback::handleGetStartReplay(int index)
 {
   StartReplay startReplay;
   auto indexReplay = this->getReplayJsonAtIndex(index);
-  if (indexReplay == json({}))
+  auto name = this->getReplayNameAtIndex(index);
+  if (indexReplay == json({}) || name == std::string())
   {
     SendCmdToGame(CMD_BAD_INDEX);
     return;
   }
   auto start = indexReplay["start"];
 
+  std::memcpy(startReplay.nameBuffer, name.data(), name.size());
+  startReplay.nameSize = (u8)name.size();
   startReplay.firstFrame = start["firstFrame"];
   startReplay.stage = start["stage"];
   startReplay.randomSeed = start["randomSeed"];
@@ -1472,7 +1474,31 @@ std::vector<std::vector<u8>> CEXIBrawlback::getReplays(std::string path)
   return replays;
 }
 
-// recieve data from game into emulator
+std::string CEXIBrawlback::getReplayNameAtIndex(int index)
+{
+  auto names = getReplayNames(SConfig::GetInstance().m_brawlbackReplayDir);
+  if (index > names.size() - 1)
+  {
+    return std::string();
+  }
+  return names[index];
+}
+
+std::vector<std::string> CEXIBrawlback::getReplayNames(std::string path)
+{
+  std::vector<std::string> names;
+  for (auto& p : fs::directory_iterator(path))
+  {
+    if (p.path().extension().string() == ".brba")
+    {
+      auto fullname = p.path().filename().string();
+      size_t lastindex = fullname.find_last_of(".");
+      names.push_back(fullname.substr(0, lastindex));
+    }
+  }
+  return names;
+}
+    // recieve data from game into emulator
 void CEXIBrawlback::DMAWrite(u32 address, u32 size)
 {
   // INFO_LOG(BRAWLBACK, "DMAWrite size: %u\n", size);

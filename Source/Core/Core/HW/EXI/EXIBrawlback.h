@@ -52,8 +52,10 @@ private:
   void fixStartReplayEndianness(StartReplay& startReplay);
   void fixReplayEndianness(Replay& replay);
   std::vector<std::vector<u8>> getReplays(std::string path);
+  std::vector<std::string> getReplayNames(std::string path);
   u8 getNumReplays(std::string path);
   json getReplayJsonAtIndex(int index);
+  std::string getReplayNameAtIndex(int index);
   int curIndex;
   json curReplayJson;
   std::string curReplayName;
