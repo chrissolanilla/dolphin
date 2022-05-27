@@ -1195,9 +1195,11 @@ void CEXIBrawlback::fixStartReplayEndianness(StartReplay& startReplay)
   startReplay.randomSeed = swap_endian(startReplay.randomSeed);
   for (int i = 0; i < startReplay.numPlayers; i++)
   {
-    startReplay.players[i].startPlayer.xPos = swap_endian(startReplay.players[i].startPlayer.xPos);
-    startReplay.players[i].startPlayer.yPos = swap_endian(startReplay.players[i].startPlayer.yPos);
-    startReplay.players[i].startPlayer.zPos = swap_endian(startReplay.players[i].startPlayer.zPos);
+    auto& startPlayer = startReplay.players[i].startPlayer;
+
+    startPlayer.xPos = swap_endian(startPlayer.xPos);
+    startPlayer.yPos = swap_endian(startPlayer.yPos);
+    startPlayer.zPos = swap_endian(startPlayer.zPos);
   }
 }
 
@@ -1238,30 +1240,36 @@ void CEXIBrawlback::fixReplayEndianness(Replay& replay)
   replay.persistentFrameCounter = swap_endian(replay.persistentFrameCounter);
   for (int i = 0; i < replay.numItems; i++)
   {
-    replay.items[i].itemId = swap_endian(replay.items[i].itemId);
-    replay.items[i].itemVariant = swap_endian(replay.items[i].itemVariant);
+    auto& item = replay.items[i];
+
+    item.itemId = swap_endian(item.itemId);
+    item.itemVariant = swap_endian(item.itemVariant);
   }
   for (int i = 0; i < replay.numPlayers; i++)
   {
-    replay.players[i].actionState = swap_endian(replay.players[i].actionState);
-    replay.players[i].damage = swap_endian(replay.players[i].damage);
-    replay.players[i].stockCount = swap_endian(replay.players[i].stockCount);
+    auto& player = replay.players[i];
+    auto& input = player.inputs;
+    auto& pos = player.pos;
 
-    replay.players[i].inputs.attack = swap_endian(replay.players[i].inputs.attack);
-    replay.players[i].inputs.cStick = swap_endian(replay.players[i].inputs.cStick);
-    replay.players[i].inputs.dTaunt = swap_endian(replay.players[i].inputs.dTaunt);
-    replay.players[i].inputs.jump = swap_endian(replay.players[i].inputs.jump);
-    replay.players[i].inputs.leftStickX = swap_endian(replay.players[i].inputs.leftStickX);
-    replay.players[i].inputs.leftStickY = swap_endian(replay.players[i].inputs.leftStickY);
-    replay.players[i].inputs.shield = swap_endian(replay.players[i].inputs.shield);
-    replay.players[i].inputs.special = swap_endian(replay.players[i].inputs.special);
-    replay.players[i].inputs.sTaunt = swap_endian(replay.players[i].inputs.sTaunt);
-    replay.players[i].inputs.tapJump = swap_endian(replay.players[i].inputs.tapJump);
-    replay.players[i].inputs.uTaunt = swap_endian(replay.players[i].inputs.uTaunt);
+    player.actionState = swap_endian(player.actionState);
+    player.damage = swap_endian(player.damage);
+    player.stockCount = swap_endian(player.stockCount);
 
-    replay.players[i].pos.xPos = swap_endian(replay.players[i].pos.xPos);
-    replay.players[i].pos.yPos = swap_endian(replay.players[i].pos.yPos);
-    replay.players[i].pos.zPos = swap_endian(replay.players[i].pos.zPos);
+    input.attack = swap_endian(input.attack);
+    input.cStick = swap_endian(input.cStick);
+    input.dTaunt = swap_endian(input.dTaunt);
+    input.jump = swap_endian(input.jump);
+    input.leftStickX = swap_endian(input.leftStickX);
+    input.leftStickY = swap_endian(input.leftStickY);
+    input.shield = swap_endian(input.shield);
+    input.special = swap_endian(input.special);
+    input.sTaunt = swap_endian(input.sTaunt);
+    input.tapJump = swap_endian(input.tapJump);
+    input.uTaunt = swap_endian(input.uTaunt);
+
+    pos.xPos = swap_endian(pos.xPos);
+    pos.yPos = swap_endian(pos.yPos);
+    pos.zPos = swap_endian(pos.zPos);
   }
 }
 
@@ -1435,6 +1443,7 @@ void CEXIBrawlback::handleNumReplays()
 void CEXIBrawlback::handleSetReplayIndex(u8* payload)
 {
   std::memcpy(&this->curIndex, payload, sizeof(int));
+  this->curIndex = swap_endian(this->curIndex);
 }
 
 json CEXIBrawlback::getReplayJsonAtIndex(int index)
