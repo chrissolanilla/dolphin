@@ -11,7 +11,7 @@
 #include <filesystem>
 #include <vector>
 #include <regex>
-#include <Core/Brawlback/include/brawlback-exi-structures/ExiStructures.h>
+#include <Core/Brawlback/include/brawlback-common/ExiStructures.h>
 namespace fs = std::filesystem;
 
 // --- Mutexes

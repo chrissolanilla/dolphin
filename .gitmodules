@@ -8,6 +8,6 @@
 	url = https://github.com/mgba-emu/mgba.git
 	branch = master
 	shallow = true
-[submodule "Source/Core/Core/Brawlback/include/brawlback-exi-structures"]
+[submodule "Source/Core/Core/Brawlback/include/brawlback-common"]
 	path = Source/Core/Core/Brawlback/include/brawlback-common
-	url = https://github.com/Brawlback-Team/brawlback-exi-structures.git
+	url = https://github.com/Brawlback-Team/brawlback-common
