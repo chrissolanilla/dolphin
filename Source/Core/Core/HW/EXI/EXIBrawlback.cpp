@@ -22,7 +22,7 @@ std::mutex localPadQueueMutex = std::mutex();
 // -------------------------------
 
 template <class T>
-T swap_endian(T in)
+[[nodiscard]] T swap_endian(T in)
 {
   char* const p = reinterpret_cast<char*>(&in);
   for (size_t i = 0; i < sizeof(T) / 2; ++i)
@@ -32,7 +32,6 @@ T swap_endian(T in)
 void writeToFile(std::string filename, uint8_t* ptr, size_t len)
 {
   std::ofstream fp;
-  std::filesystem::create_directory(SConfig::GetInstance().m_brawlbackReplayDir + "/" + SConfig::GetInstance().m_details_game_id);
   fp.open(filename, std::ios::out | std::ios::binary);
   fp.write((char*)ptr, len);
 }
@@ -1194,15 +1193,39 @@ void CEXIBrawlback::fixStartReplayEndianness(StartReplay& startReplay)
   startReplay.firstFrame = swap_endian(startReplay.firstFrame);
   startReplay.otherRandomSeed = swap_endian(startReplay.otherRandomSeed);
   startReplay.randomSeed = swap_endian(startReplay.randomSeed);
-  for (int i = 0; i < startReplay.numPlayers; i++)
+  for (auto& player : startReplay.players)
   {
-    auto& startPlayer = startReplay.players[i].startPlayer;
-
-    startPlayer.xPos = swap_endian(startPlayer.xPos);
-    startPlayer.yPos = swap_endian(startPlayer.yPos);
-    startPlayer.zPos = swap_endian(startPlayer.zPos);
+    player.startPlayer.xPos = swap_endian(player.startPlayer.xPos);
+    player.startPlayer.yPos = swap_endian(player.startPlayer.yPos);
+    player.startPlayer.zPos = swap_endian(player.startPlayer.zPos);
   }
 }
+
+void CEXIBrawlback::serializeStartReplay(const StartReplay& startReplay)
+{
+  this->curReplayName = std::string(startReplay.nameBuffer, startReplay.nameBuffer + startReplay.nameSize);
+  auto& start = this->curReplayJson["start"];
+  for (int i = 0; i < startReplay.numPlayers; i++)
+  {
+    auto& player = start["players"][i];
+    auto& position = player["startPlayerPos"];
+
+    auto replayPlayer = startReplay.players[i];
+    auto replayPosition = replayPlayer.startPlayer;
+
+    player["ftKind"] = replayPlayer.fighterKind;
+    player["slotID"] = replayPlayer.slotID;
+
+    position["x"] = replayPosition.xPos;
+    position["y"] = replayPosition.yPos;
+    position["z"] = replayPosition.zPos;
+  }
+  start["stage"] = startReplay.stage;
+  start["randomSeed"] = startReplay.randomSeed;
+  start["otherRandomSeed"] = startReplay.otherRandomSeed;
+  start["firstFrame"] = startReplay.firstFrame;
+}
+
 
 void CEXIBrawlback::handleStartReplaysStruct(u8* payload)
 {
@@ -1210,29 +1233,8 @@ void CEXIBrawlback::handleStartReplaysStruct(u8* payload)
   {
     StartReplay startReplay;
     std::memcpy(&startReplay, payload, sizeof(StartReplay));
-
-    this->curReplayName = std::string(startReplay.nameBuffer, startReplay.nameBuffer + startReplay.nameSize);
-
-    auto& start = this->curReplayJson["start"];
-    for (int i = 0; i < startReplay.numPlayers; i++)
-    {
-      auto& player = start["players"][i];
-      auto& position = player["startPlayerPos"];
-
-      auto replayPlayer = startReplay.players[i];
-      auto replayPosition = replayPlayer.startPlayer;
-
-      player["ftKind"] = replayPlayer.fighterKind;
-      player["slotID"] = replayPlayer.slotID;
-
-      position["x"] = replayPosition.xPos;
-      position["y"] = replayPosition.yPos;
-      position["z"] = replayPosition.zPos;
-    }
-    start["stage"] = startReplay.stage;
-    start["randomSeed"] = startReplay.randomSeed;
-    start["otherRandomSeed"] = startReplay.otherRandomSeed;
-    start["firstFrame"] = startReplay.firstFrame;
+    fixStartReplayEndianness(startReplay);
+    serializeStartReplay(startReplay);
   }
 }
 
@@ -1240,16 +1242,13 @@ void CEXIBrawlback::fixReplayEndianness(Replay& replay)
 {
   replay.frameCounter = swap_endian(replay.frameCounter);
   replay.persistentFrameCounter = swap_endian(replay.persistentFrameCounter);
-  for (int i = 0; i < replay.numItems; i++)
+  for (auto& item : replay.items)
   {
-    auto& item = replay.items[i];
-
     item.itemId = swap_endian(item.itemId);
     item.itemVariant = swap_endian(item.itemVariant);
   }
-  for (int i = 0; i < replay.numPlayers; i++)
+  for (auto& player : replay.players)
   {
-    auto& player = replay.players[i];
     auto& input = player.inputs;
     auto& pos = player.pos;
 
@@ -1275,53 +1274,57 @@ void CEXIBrawlback::fixReplayEndianness(Replay& replay)
   }
 }
 
+void CEXIBrawlback::serializeReplay(const Replay& replay)
+{
+  const auto frameName = fmt::format("frame_{}", replay.frameCounter);
+  this->curReplayJson[frameName]["persistentFrameCounter"] = replay.persistentFrameCounter;
+  for (int i = 0; i < replay.numItems; i++)
+  {
+    auto& item = this->curReplayJson[frameName]["items"][i];
+    auto replayItem = replay.items[i];
+
+    item["itemId"] = replayItem.itemId;
+    item["itemVariant"] = replayItem.itemVariant;
+  }
+  for (int i = 0; i < replay.numPlayers; i++)
+  {
+    auto& player = this->curReplayJson[frameName]["players"][i];
+    auto& inputs = player["inputs"];
+    auto& position = player["position"];
+
+    auto replayPlayer = replay.players[i];
+    auto replayInputs = replayPlayer.inputs;
+    auto replayPosition = replayPlayer.pos;
+
+    player["actionState"] = replayPlayer.actionState;
+    player["damage"] = replayPlayer.damage;
+    player["stockCount"] = replayPlayer.stockCount;
+
+    inputs["attack"] = replayInputs.attack;
+    inputs["cStick"] = replayInputs.cStick;
+    inputs["dTaunt"] = replayInputs.dTaunt;
+    inputs["jump"] = replayInputs.jump;
+    inputs["leftStickX"] = replayInputs.leftStickX;
+    inputs["leftStickY"] = replayInputs.leftStickY;
+    inputs["shield"] = replayInputs.shield;
+    inputs["special"] = replayInputs.special;
+    inputs["sTaunt"] = replayInputs.sTaunt;
+    inputs["tapJump"] = replayInputs.tapJump;
+    inputs["uTaunt"] = replayInputs.uTaunt;
+
+    position["x"] = replayPosition.xPos;
+    position["y"] = replayPosition.yPos;
+    position["z"] = replayPosition.zPos;
+  }
+}
 void CEXIBrawlback::handleReplaysStruct(u8* payload)
 {
   if (SConfig::GetInstance().m_brawlbackSaveReplays)
   {
     Replay replay;
     std::memcpy(&replay, payload, sizeof(Replay));
-
-    const auto frameName = fmt::format("frame_{}", replay.frameCounter);
-    this->curReplayJson[frameName]["persistentFrameCounter"] = replay.persistentFrameCounter;
-    for (int i = 0; i < replay.numItems; i++)
-    {
-      auto& item = this->curReplayJson[frameName]["items"][i];
-      auto replayItem = replay.items[i];
-
-      item["itemId"] = replayItem.itemId;
-      item["itemVariant"] = replayItem.itemVariant;
-    }
-    for (int i = 0; i < replay.numPlayers; i++)
-    {
-      auto& player = this->curReplayJson[frameName]["players"][i];
-      auto& inputs = player["inputs"];
-      auto& position = player["position"];
-
-      auto replayPlayer = replay.players[i];
-      auto replayInputs = replayPlayer.inputs;
-      auto replayPosition = replayPlayer.pos;
-
-      player["actionState"] = replayPlayer.actionState;
-      player["damage"] = replayPlayer.damage;
-      player["stockCount"] = replayPlayer.stockCount;
-
-      inputs["attack"] = replayInputs.attack;
-      inputs["cStick"] = replayInputs.cStick;
-      inputs["dTaunt"] = replayInputs.dTaunt;
-      inputs["jump"] = replayInputs.jump;
-      inputs["leftStickX"] = replayInputs.leftStickX;
-      inputs["leftStickY"] = replayInputs.leftStickY;
-      inputs["shield"] = replayInputs.shield;
-      inputs["special"] = replayInputs.special;
-      inputs["sTaunt"] = replayInputs.sTaunt;
-      inputs["tapJump"] = replayInputs.tapJump;
-      inputs["uTaunt"] = replayInputs.uTaunt;
-
-      position["x"] = replayPosition.xPos;
-      position["y"] = replayPosition.yPos;
-      position["z"] = replayPosition.zPos;
-    }
+    fixReplayEndianness(replay);
+    serializeReplay(replay);
   }
 }
 
@@ -1330,6 +1333,12 @@ void CEXIBrawlback::handleEndOfReplay()
   if (SConfig::GetInstance().m_brawlbackSaveReplays)
   {
     auto ubjson = json::to_ubjson(this->curReplayJson);
+    if (!std::filesystem::exists(SConfig::GetInstance().m_brawlbackReplayDir + "/" +
+                                 SConfig::GetInstance().m_details_game_id))
+    {
+      std::filesystem::create_directory(SConfig::GetInstance().m_brawlbackReplayDir + "/" +
+                                        SConfig::GetInstance().m_details_game_id);
+    }
     writeToFile(SConfig::GetInstance().m_brawlbackReplayDir + "/" +
                 SConfig::GetInstance().m_details_game_id + "/" +
                 this->curReplayName + ".brba", ubjson.data(), ubjson.size());

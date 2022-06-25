@@ -34,6 +34,8 @@ private:
   void handleFindMatch(u8* payload);
   void handleStartMatch(u8* payload);
   void handleStartReplaysStruct(u8* payload);
+  void serializeStartReplay(const StartReplay& startReplay);
+  void serializeReplay(const Replay& replay);
   void handleReplaysStruct(u8* payload);
   void handleEndOfReplay();
   void handleGetNextFrame(u8* payload, int index);
