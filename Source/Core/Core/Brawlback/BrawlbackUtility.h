@@ -62,6 +62,8 @@ namespace Brawlback {
       CMD_ROLLBACK = 17,
       CMD_FRAMEADVANCE = 18,
 
+      CMD_SAVESTATE_REGION = 22,
+
       // REPLAYS
       CMD_REPLAY_START_REPLAYS_STRUCT = 19,
       CMD_REPLAY_REPLAYS_STRUCT = 20,

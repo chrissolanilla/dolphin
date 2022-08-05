@@ -57,6 +57,14 @@ CEXIBrawlback::CEXIBrawlback()
   this->netplay = std::make_unique<BrawlbackNetplay>();
   this->matchmaking = std::make_unique<Matchmaking>(this->getUserInfo());
   this->timeSync = std::make_unique<TimeSync>();
+
+    activeSavestates.clear();
+    availableSavestates.clear();
+    for (int i = 0; i <= MAX_ROLLBACK_FRAMES; i++)
+    {
+        availableSavestates.push_back(std::make_unique<BrawlbackSavestate>());
+    }
+    INFO_LOG(BRAWLBACK, "Initialized savestates!\n");
 }
 
 Brawlback::UserInfo CEXIBrawlback::getUserInfo()
@@ -108,6 +116,42 @@ CEXIBrawlback::~CEXIBrawlback()
   }
 }
 
+void CEXIBrawlback::handleSavestateRegion(u8* payload, u32 size) {
+    SavestateMemRegionInfo* infos = (SavestateMemRegionInfo*)payload;
+    // the address of the region is stored in the low order bits, the size of the region is stored in the high bits
+
+    u32 numRegions = size / sizeof(SavestateMemRegionInfo);
+    //INFO_LOG(BRAWLBACK, "savestate region came in, %d items\n", numRegions);
+
+    for (u32 i = 0; i < numRegions; i++) {
+        SavestateMemRegionInfo& region = infos[i];
+        region.address = swap_endian(region.address);
+        region.size = swap_endian(region.size);
+        //INFO_LOG(BRAWLBACK, "Addr = 0x%08x size = 0x%08x\n", region.address, region.size);
+    }
+    
+
+    static bool once = false;
+    for (auto& [key, val] : this->activeSavestates) {
+        val->UpdateDynamicMemRegionsForSavestate(infos, numRegions);
+        if (!once) {
+            val->DisplaySavestateSize();
+            once = true;
+        }
+    }
+    
+    for (auto& ss : this->availableSavestates) {
+        ss->UpdateDynamicMemRegionsForSavestate(infos, numRegions);
+        if (!once) {
+            ss->DisplaySavestateSize();
+            once = true;
+        }
+    }
+
+
+}
+
+
 void CEXIBrawlback::handleCaptureSavestate(u8* data)
 {
   // current frame we are saving (and swap endianness)
@@ -117,25 +161,24 @@ void CEXIBrawlback::handleCaptureSavestate(u8* data)
 
 void CEXIBrawlback::SaveState(s32 frame)
 {
-  u64 startTime = Common::Timer::GetTimeUs();
 
   if (frame % 30 == 0)
   {
     static int dump_num = 0;
     // INFO_LOG(BRAWLBACK, "Dumping mem\n");
-    // Dump::DoMemDumpIteration(dump_num);
+    //Dump::DoMemDumpIteration(dump_num);
   }
 
   // tmp
   if (frame == GAME_START_FRAME && availableSavestates.empty())
   {
-    activeSavestates.clear();
+    /*activeSavestates.clear();
     availableSavestates.clear();
     for (int i = 0; i <= MAX_ROLLBACK_FRAMES; i++)
     {
       availableSavestates.push_back(std::make_unique<BrawlbackSavestate>());
     }
-    INFO_LOG(BRAWLBACK, "Initialized savestates!\n");
+    INFO_LOG(BRAWLBACK, "Initialized savestates!\n");*/
   }
 
   // Grab an available savestate
@@ -169,15 +212,13 @@ void CEXIBrawlback::SaveState(s32 frame)
     return;
   }
 
+  u64 startTime = Common::Timer::GetTimeUs();
   ss->Capture();
-  // ss->frame = frame;
-  // ss->checksum = SavestateChecksum(ss->getBackupLocs()); // really expensive calculation
-  // INFO_LOG(BRAWLBACK, "Savestate for frame %i checksum is %i\n", ss->frame, ss->checksum);
-  activeSavestates[frame] = std::move(ss);
-
   u32 timeDiff = (u32)(Common::Timer::GetTimeUs() - startTime);
   INFO_LOG(BRAWLBACK, "Captured savestate for frame %d in: %f ms", frame,
            ((double)timeDiff) / 1000);
+
+  activeSavestates[frame] = std::move(ss);
 }
 
 void CEXIBrawlback::handleLoadSavestate(u8* data)
@@ -349,17 +390,12 @@ void CEXIBrawlback::handleLocalPadData(u8* data)
 void CEXIBrawlback::handleFrameDataRequest(u8* data) {
 
     s32 currentFrame = (s32)SlippiUtility::Mem::readWord(data);
-    INFO_LOG(BRAWLBACK, "Game requested inputs for frame %i\n", currentFrame);
+    //INFO_LOG(BRAWLBACK, "Game requested inputs for frame %i\n", currentFrame);
 
     FrameData framedataToSendToGame;
 
     if (this->framesToAdvance != 0) {
         for (s32 i = 0; i < this->numPlayers; i++) {
-            if (this->framesToAdvance == 0) {
-                INFO_LOG(BRAWLBACK, "Stalling on this frame, so using blank inputs\n");
-                framedataToSendToGame.playerFrameDatas[i] = CreateBlankPlayerFrameData(currentFrame, i);
-                continue;
-            }
             // remote inputs
             if (i != this->localPlayerIdx) {
                 framedataToSendToGame.playerFrameDatas[i] = this->getRemoteInputs(currentFrame, i);
@@ -369,6 +405,7 @@ void CEXIBrawlback::handleFrameDataRequest(u8* data) {
         framedataToSendToGame.playerFrameDatas[this->localPlayerIdx] = this->getLocalInputs(currentFrame);
     }
     else {
+        INFO_LOG(BRAWLBACK, "Stalling on this frame, so using blank inputs\n");
         framedataToSendToGame = CreateBlankFrameData(currentFrame);
     }
 
@@ -422,13 +459,13 @@ void CEXIBrawlback::updateSync(s32& localFrame, u8 playerIdx) {
         }
     }
     else {
-        INFO_LOG(BRAWLBACK, "Not predicting\n");
+        //INFO_LOG(BRAWLBACK, "Not predicting\n");
     }
 
     // remote inputs match predicted inputs or not predicting
     if (isSynchronized) {
         this->latestConfirmedFrame = finalFrame;
-        INFO_LOG(BRAWLBACK, "is synchronized!\n");
+        //INFO_LOG(BRAWLBACK, "is synchronized!\n");
     }
     else {
         // not synchronized, rollback & resim
@@ -442,7 +479,7 @@ void CEXIBrawlback::updateSync(s32& localFrame, u8 playerIdx) {
         numRollbacks++;
     }
 
-    INFO_LOG(BRAWLBACK, "UpdateSync latestConfirmedFrame = %i\n", latestConfirmedFrame);
+    //INFO_LOG(BRAWLBACK, "UpdateSync latestConfirmedFrame = %i\n", latestConfirmedFrame);
 }
 bool CEXIBrawlback::shouldRollback(s32 localFrame) {
     // https://gist.github.com/rcmagic/f8d76bca32b5609e85ab156db38387e9#file-rollbackpseudocode-txt-L30
@@ -637,7 +674,7 @@ void BroadcastFramedataAck(u32 frame, u8 playerIdx, BrawlbackNetplay* netplay, E
   ackDataPacket.append(&cmdbyte, sizeof(cmdbyte));
   ackDataPacket.append(&ackData, sizeof(FrameAck));
   netplay->BroadcastPacket(ackDataPacket, ENET_PACKET_FLAG_UNSEQUENCED, server);
-  //INFO_LOG(BRAWLBACK, "Sent ack for frame %u  pidx %u", frame, (unsigned int)playerIdx);
+  //INFO_LOG(BRAWLBACK, "Sent ack for frame %u  pidx %u", frame, (u32)playerIdx);
 }
 
 void CEXIBrawlback::ProcessIndividualRemoteFrameData(PlayerFrameData* framedata) {
@@ -1281,6 +1318,9 @@ void CEXIBrawlback::DMAWrite(u32 address, u32 size)
     break;
   case CMD_REPLAYS_REPLAYS_END:
     handleEndOfReplay();
+    break;
+  case CMD_SAVESTATE_REGION:
+    handleSavestateRegion(payload, size);
     break;
 
   // just using these CMD's to track frame times lol

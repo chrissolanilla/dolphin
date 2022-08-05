@@ -30,13 +30,13 @@ namespace SlippiUtility
     {
 
     // Types
-    typedef struct
+    struct ssBackupLoc
     {
         u32 startAddress;
         u32 endAddress;
         u8* data;
         std::string regionName;
-    } ssBackupLoc;
+    };
 
     struct preserve_hash_fn
     {
@@ -62,7 +62,9 @@ namespace SlippiUtility
 
 
     // Funcs
-    void SlippiInitBackupLocations(std::vector<ssBackupLoc>& backupLocs,
+
+    /// populates backupLocs with the specified backup regions, taking into account any sections we want to exclude
+    void SlippiAppendBackupLocations(std::vector<ssBackupLoc>& backupLocs,
                                     std::vector<ssBackupLoc>& fullBackupRegions,
                                     std::vector<PreserveBlock>& excludeSections);
 

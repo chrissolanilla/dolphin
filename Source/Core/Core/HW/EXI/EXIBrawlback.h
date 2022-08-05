@@ -39,6 +39,7 @@ private:
   void handleStartReplaysStruct(u8* payload);
   void handleReplaysStruct(u8* payload);
   void handleEndOfReplay();
+  void handleSavestateRegion(u8* payload, u32 size);
 
   template <typename T>
   void SendCmdToGame(EXICommand cmd, T* payload);
@@ -103,9 +104,6 @@ private:
   // -------------------------------
 
   // --- Savestates
-  std::deque<std::unique_ptr<BrawlbackSavestate>> savestates = {};
-  std::unordered_map<u32, BrawlbackSavestate*> savestatesMap = {};
-
   std::map<s32, std::unique_ptr<BrawlbackSavestate>> activeSavestates = {};
   std::deque<std::unique_ptr<BrawlbackSavestate>> availableSavestates = {};
   // -------------------------------
