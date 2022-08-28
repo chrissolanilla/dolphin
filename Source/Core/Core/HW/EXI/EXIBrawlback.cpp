@@ -115,6 +115,7 @@ CEXIBrawlback::~CEXIBrawlback()
     this->matchmaking_thread.join();
   }
 }
+#include "Core/Debugger/Debugger_SymbolMap.h"
 
 void CEXIBrawlback::handleSavestateRegion(u8* payload, u32 size) {
     SavestateMemRegionInfo* infos = (SavestateMemRegionInfo*)payload;
@@ -123,6 +124,7 @@ void CEXIBrawlback::handleSavestateRegion(u8* payload, u32 size) {
     u32 numRegions = size / sizeof(SavestateMemRegionInfo);
     //INFO_LOG(BRAWLBACK, "savestate region came in, %d items\n", numRegions);
 
+    // fix endianness of incoming mem regions(s)
     for (u32 i = 0; i < numRegions; i++) {
         SavestateMemRegionInfo& region = infos[i];
         region.address = swap_endian(region.address);
@@ -130,20 +132,36 @@ void CEXIBrawlback::handleSavestateRegion(u8* payload, u32 size) {
         //INFO_LOG(BRAWLBACK, "Addr = 0x%08x size = 0x%08x\n", region.address, region.size);
     }
     
+    #if 0
+    // if we're adding 1 region
+    if (numRegions == 1 && infos[0].TAddFRemove) {
+        std::vector<Dolphin_Debugger::CallstackEntry> stack;
+        bool success = Dolphin_Debugger::GetCallstack(stack);
+        if (success) {
+            bool shouldPrint = false;
+            for (const auto& frame : stack) {
+                if (shouldPrint)
+                    INFO_LOG(BRAWLBACK, "%s\n", frame.Name.c_str());
+                if (frame.vAddress == 0x80025ebc) // once we get to the alloc call, the other ones are relevant
+                    shouldPrint = true;
+            }
+        }
+    }
+    #endif
 
+    // update all savestate instances
     static bool once = false;
     for (auto& [key, val] : this->activeSavestates) {
         val->UpdateDynamicMemRegionsForSavestate(infos, numRegions);
         if (!once) {
-            val->DisplaySavestateSize();
+            val->DisplaySavestateSize(); 
             once = true;
         }
     }
-    
     for (auto& ss : this->availableSavestates) {
         ss->UpdateDynamicMemRegionsForSavestate(infos, numRegions);
         if (!once) {
-            ss->DisplaySavestateSize();
+            ss->DisplaySavestateSize(); 
             once = true;
         }
     }
@@ -613,7 +631,7 @@ void CEXIBrawlback::handleSendInputs(u32 frame) {
     int minAckFrame = this->timeSync->getMinAckFrame(this->numPlayers);
 
     // clamp to current frame to prevent it dropping local inputs that haven't been used yet
-    minAckFrame = MIN(minAckFrame, frame); 
+    minAckFrame = MIN<u32>(minAckFrame, frame); 
 
 
     int localPadQueueSize = (int)this->localPlayerFrameData.size();

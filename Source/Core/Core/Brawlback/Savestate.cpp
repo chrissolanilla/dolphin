@@ -59,10 +59,12 @@ void BrawlbackSavestate::UpdateDynamicMemRegionsForSavestate(SavestateMemRegionI
 
     // process multiple regions at once
     if (numRegions > 1) {
+        
         for (auto& loc : dynamicLocs) {
             Common::FreeAlignedMemory(loc.data);
         }
         dynamicLocs.clear();
+        
 
         for (u32 i = 0; i < numRegions; i++) {
             const SavestateMemRegionInfo& info = regions[i];
@@ -74,34 +76,46 @@ void BrawlbackSavestate::UpdateDynamicMemRegionsForSavestate(SavestateMemRegionI
         }
     }
     // process a single new region
-    else {
-        const SavestateMemRegionInfo& info = regions[0];
-        ssBackupLoc loc = {};
-        loc.data = static_cast<u8*>(Common::AllocateAlignedMemory(info.size, 64));
-        loc.startAddress = info.address;
-        loc.endAddress = info.address + info.size;
+    else if (numRegions == 1) {
+        const SavestateMemRegionInfo& memRegionInfo = regions[0];
+        ssBackupLoc newMemRegion = {};
+        newMemRegion.startAddress = memRegionInfo.address;
+        newMemRegion.endAddress = memRegionInfo.address + memRegionInfo.size;
         // add region to map
-        if (info.TAddFRemove) {
-            memRegionMap[loc.startAddress] = loc;
+        if (memRegionInfo.TAddFRemove) {
+            // if we're adding it, need to alloc
+            // if already exists in map
+            if (memRegionMap.count(newMemRegion.startAddress)) {
+                //WARN_LOG(BRAWLBACK, "Mem region already exists in map, overwriting with bigger sized alloc...\n");
+                ssBackupLoc& oldMemRegion = memRegionMap[newMemRegion.startAddress];
+                // if there's an alloc at a spot we already have one, 
+                // and it's bigger than the previous, replace it with the bigger allocated block
+                if (newMemRegion.endAddress > oldMemRegion.endAddress) {
+                    newMemRegion.data = static_cast<u8*>(Common::AllocateAlignedMemory(memRegionInfo.size, 64));
+                    oldMemRegion.endAddress = newMemRegion.endAddress;
+                    free(oldMemRegion.data);
+                    oldMemRegion = newMemRegion;
+                }
+            }
+            // doesn't already exist, so just add it normally
+            else {
+                INFO_LOG(BRAWLBACK, "Adding new single allocation to savestave. addr = 0x%08x size = 0x%08x", memRegionInfo.address, memRegionInfo.size);
+                newMemRegion.data = static_cast<u8*>(Common::AllocateAlignedMemory(memRegionInfo.size, 64));
+                memRegionMap[newMemRegion.startAddress] = newMemRegion;
+            }
+            ExcludeSectionsFromMap(memRegionMap, MemRegions::excludeSections);
         }
         // remove region from map
         else {
-            // already exists in map
-            if (memRegionMap.count(loc.startAddress)) {
-                WARN_LOG(BRAWLBACK, "Mem region already exists in map, overwriting with bigger sized alloc...\n");
-                // use the bigger of the two
-                memRegionMap[loc.startAddress].startAddress = 
-                        Brawlback::MAX(loc.startAddress, memRegionMap[loc.startAddress].startAddress);
-            }
-            else {
-                memRegionMap.erase(loc.startAddress);
-            }
+            memRegionMap.erase(newMemRegion.startAddress);
         }
-        regionsToAppend.push_back(loc);
     }
 
-    SlippiAppendBackupLocations(this->dynamicLocs, regionsToAppend, MemRegions::excludeSections);
-    AllocateMemForBackupLocs(dynamicLocs);
+    if (!regionsToAppend.empty()) {
+        SlippiAppendBackupLocations(this->dynamicLocs, regionsToAppend, MemRegions::excludeSections);
+        AllocateMemForBackupLocs(dynamicLocs);
+    }
+
 }
 
 
@@ -126,9 +140,32 @@ void BrawlbackSavestate::DisplaySavestateSize(const std::vector<SlippiUtility::S
     }
 }
 
+void BrawlbackSavestate::DisplaySavestateSize(const std::map<u32, ssBackupLoc>& regions) {
+    u64 totalsize = 0;
+    for (const auto& [k,v] : regions) {
+        const auto& loc = v;
+        u32 size = loc.endAddress-loc.startAddress;
+        double newsize = ((double)size / 1000.0) / 1000.0;
+        if (!loc.data) {
+            ERROR_LOG(BRAWLBACK, "[NO DATA] Savestate region: 0x%x - 0x%x : size %f mb   %s\n", loc.startAddress, loc.endAddress, newsize, loc.regionName.c_str());
+        }
+        else {
+            INFO_LOG(BRAWLBACK, "Savestate region: 0x%x - 0x%x : size %f mb   %s\n", loc.startAddress, loc.endAddress, newsize, loc.regionName.c_str());
+        }
+        totalsize += size;
+    }
+    if (totalsize) {
+        double dsize = ((double)totalsize / 1000.0) / 1000.0;
+        std::string savestates_str = "Savestate total size: " + std::to_string(dsize) + " mb\n";
+        OSD::AddTypedMessage(OSD::MessageType::Typeless, savestates_str, OSD::Duration::VERY_LONG, OSD::Color::GREEN);
+        INFO_LOG(BRAWLBACK, "Savestate total size: %f mb\n", dsize);
+    }
+}
+
 void BrawlbackSavestate::DisplaySavestateSize() {
     DisplaySavestateSize(backupLocs);
     DisplaySavestateSize(dynamicLocs);
+    DisplaySavestateSize(memRegionMap);
 }
 
 
@@ -160,8 +197,21 @@ void loadMemRegions(const backupLocList& locs) {
 
 void BrawlbackSavestate::Capture()
 {
+    #if 1
     captureMemRegions(backupLocs);
     captureMemRegions(dynamicLocs);
+    #endif
+
+    #if 1
+    for (auto it = memRegionMap.begin(); it != memRegionMap.end(); ++it) {
+        ssBackupLoc info = it->second;
+        auto size = info.endAddress - info.startAddress;
+        if (size && info.data)
+            Memory::CopyFromEmu(info.data, info.startAddress, size);  // emu -> game
+        else
+            ERROR_LOG(BRAWLBACK, "Invalid size/data ptr in savestate! [%x, %x]\n", info.startAddress, info.endAddress);
+    }
+    #endif
 }
 
 void BrawlbackSavestate::Load(std::vector<PreserveBlock> blocks)
@@ -181,8 +231,21 @@ void BrawlbackSavestate::Load(std::vector<PreserveBlock> blocks)
     }*/
 
     // Restore memory blocks
+    #if 1
     loadMemRegions(backupLocs);
     loadMemRegions(dynamicLocs);
+    #endif
+
+    #if 1
+    for (auto it = memRegionMap.begin(); it != memRegionMap.end(); ++it) {
+        ssBackupLoc info = it->second;
+        auto size = info.endAddress - info.startAddress;
+        if (size && info.data)
+            Memory::CopyToEmu(info.startAddress, info.data, size);  // emu -> game
+        else
+            ERROR_LOG(BRAWLBACK, "Invalid size/data ptr in savestate! [%x, %x]\n", info.startAddress, info.endAddress);
+    }
+    #endif
 
     // Restore preservation blocks
     /*for (auto it = blocks.begin(); it != blocks.end(); ++it)

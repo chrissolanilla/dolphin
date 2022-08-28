@@ -20,20 +20,20 @@ public:
     void Capture();
     void Load(std::vector<PreserveBlock> blocks);
     void DisplaySavestateSize(const std::vector<SlippiUtility::Savestate::ssBackupLoc>& regions);
+    void DisplaySavestateSize(const std::map<u32, ssBackupLoc>& regions);
     void DisplaySavestateSize();
 
     void UpdateDynamicMemRegionsForSavestate(SavestateMemRegionInfo* regions, u32 numRegions);
 
     std::vector<ssBackupLoc>* getBackupLocs() { return &backupLocs; }
-private:
-
-
+    
     std::vector<ssBackupLoc> backupLocs = {};
     std::vector<ssBackupLoc> dynamicLocs = {};
 
-    std::unordered_map<u32, ssBackupLoc> memRegionMap = {};
+    std::map<u32, ssBackupLoc> memRegionMap = {};
+private:
 
-    //std::unordered_map<PreserveBlock, std::vector<u8>, preserve_hash_fn, preserve_eq_fn> preservationMap;
+
 
 
 

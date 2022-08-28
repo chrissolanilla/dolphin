@@ -14,7 +14,7 @@ namespace MemRegions {
 static std::vector<PreserveBlock> excludeSections = {
     // {start address, size}
 
-   RANGE_TO_SIZE(0x935D0000, 0x935E0000), // CPP Framework heap (subject to change...??)
+    RANGE_TO_SIZE(0x935D0000, 0x935E0000), // CPP Framework heap (subject to change...??)
     // might also need the initializer sections(?) where global statics are stored
     // cpp framework code sections
     RANGE_TO_SIZE(0x817da5a4, 0x81FFFFFF),

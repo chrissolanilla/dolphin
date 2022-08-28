@@ -67,6 +67,9 @@ namespace SlippiUtility
     void SlippiAppendBackupLocations(std::vector<ssBackupLoc>& backupLocs,
                                     std::vector<ssBackupLoc>& fullBackupRegions,
                                     std::vector<PreserveBlock>& excludeSections);
+    
+    void ExcludeSectionsFromMap(std::map<u32, ssBackupLoc>& memRegionMap,
+                                std::vector<PreserveBlock>& excludeSections);
 
     } // namespace Savestate
 
