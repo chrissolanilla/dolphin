@@ -395,7 +395,7 @@ PlayerFrameData CEXIBrawlback::getLocalInputs(const s32& frame) {
     if (!localFrameData || this->localPlayerFrameData.empty()) {
         // this shouldn't happen
         ERROR_LOG(BRAWLBACK, "Couldn't find local inputs! Using empty pad.\n");
-        WARN_LOG(BRAWLBACK, "Local pad input range: [%u - %u]\n", this->localPlayerFrameData.front()->frame, this->localPlayerFrameData.back()->frame);
+       // WARN_LOG(BRAWLBACK, "Local pad input range: [%u - %u]\n", this->localPlayerFrameData.front()->frame, this->localPlayerFrameData.back()->frame);
         return CreateBlankPlayerFrameData(frame, this->localPlayerIdx);
     }
     INFO_LOG(BRAWLBACK, "Got local inputs frame = %u\n", localFrameData->frame);
