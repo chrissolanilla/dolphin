@@ -87,7 +87,7 @@ Brawlback::UserInfo CEXIBrawlback::getUserInfo()
   }
 
   json j = json::parse(data);
-  INFO_LOG(BRAWLBACK, "JSON Contents: %s", j.dump(4).c_str());
+  //INFO_LOG(BRAWLBACK, "JSON Contents: %s", j.dump(4).c_str());
 
   info.uid = j["uid"].get<std::string>();
   info.playKey = j["playKey"].get<std::string>();
@@ -366,6 +366,7 @@ void CEXIBrawlback::handleFrameDataRequest(u8* data) {
         for (s32 i = 0; i < this->numPlayers; i++) {
             if (this->framesToAdvance == 0) {
                 INFO_LOG(BRAWLBACK, "Stalling on this frame, so using blank inputs\n");
+                // TODO: should pad data really be sent blank here even if stalling? what if we need to advance but make the game still process some inputs?
                 framedataToSendToGame.playerFrameDatas[i] = CreateBlankPlayerFrameData(currentFrame, i);
                 continue;
             }
@@ -670,6 +671,34 @@ void CEXIBrawlback::ProcessIndividualRemoteFrameData(PlayerFrameData* framedata)
         //WARN_LOG(BRAWLBACK, "Hit remote player framedata queue max size! %u\n", remoteFramedataQueue.size());
         remoteFramedataQueue.pop_front();
     }
+
+    
+
+}
+const char* bit_rep[16] = {
+    "0000", "0001", "0010", "0011", "0100", "0101", "0110", "0111",
+    "1000", "1001", "1010", "1011", "1100", "1101", "1110", "1111",
+};
+void print_byte(u8 byte) { INFO_LOG(BRAWLBACK, "%s%s", bit_rep[byte >> 4], bit_rep[byte & 0x0F]); }
+void print_half(u16 half)
+{
+  u8 byte0 = half >> 8;
+  u8 byte1 = half & 0xFF;
+
+  print_byte(byte0);
+  print_byte(byte1);
+}
+
+void printInputs(const BrawlbackPad& pad) {
+  INFO_LOG(BRAWLBACK, " -- Pad --\n");
+  INFO_LOG(BRAWLBACK, "StickX: %hhu ", pad.stickX);
+  INFO_LOG(BRAWLBACK, "StickY: %hhu ", pad.stickY);
+  INFO_LOG(BRAWLBACK, "CStickX: %hhu ", pad.cStickX);
+  INFO_LOG(BRAWLBACK, "CStickY: %hhu\n", pad.cStickY);
+  INFO_LOG(BRAWLBACK, "Buttons: ");
+  print_half(pad.buttons);
+  INFO_LOG(BRAWLBACK, " LTrigger: %u    RTrigger %u\n", pad.LTrigger, pad.RTrigger);
+  //OSReport(" ---------\n"); 
 }
 
 void CEXIBrawlback::ProcessRemoteFrameData(PlayerFrameData* framedatas, u8 numFramedatas_u8)
@@ -686,6 +715,11 @@ void CEXIBrawlback::ProcessRemoteFrameData(PlayerFrameData* framedatas, u8 numFr
   BroadcastFramedataAck(frame, playerIdx, this->netplay.get(), this->server);
   // ---------------------
 
+  // Just print for other player
+  if(this->isHost && playerIdx == 1) {
+    INFO_LOG(BRAWLBACK, "Received remote inputs from %i", playerIdx);
+    printInputs(mostRecentFramedata->pad);
+  }
   // if (!this->remotePlayerFrameData[playerIdx].empty())
   // INFO_LOG(BRAWLBACK, "Received remote inputs. Head frame %u  received head frame %u\n",
   // this->remotePlayerFrameData[playerIdx].back()->frame, frame);
@@ -731,6 +765,8 @@ void CEXIBrawlback::ProcessGameSettings(GameSettings* opponentGameSettings)
   // assumes 1v1
   int remotePlayerIdx = this->isHost ? 1 : 0;
 
+  
+
   //doing this so functionally equivalen to what White had before
   // Probably should just use gameSettings directly...
   GameSettings& mergedGameSettings = gameSettings;
@@ -738,6 +774,11 @@ void CEXIBrawlback::ProcessGameSettings(GameSettings* opponentGameSettings)
   INFO_LOG(BRAWLBACK, "Remote player idx: %i\n", remotePlayerIdx);
 
   mergedGameSettings.localPlayerIdx = this->localPlayerIdx;
+
+  // TODO: again assign proper stuff based on reality and since we really don't know what the player port is right now
+  // since netplay menu is not being used for this atm, we are going to assume that always p1 vs p1 are getting connected
+  // when netlay menu is set, get player port from game.
+  mergedGameSettings.localPlayerPort = 0; // p1
 
   this->numPlayers = mergedGameSettings.numPlayers;
   INFO_LOG(BRAWLBACK, "Num players from emu: %u\n", (unsigned int)this->numPlayers);
@@ -776,6 +817,10 @@ void CEXIBrawlback::ProcessGameSettings(GameSettings* opponentGameSettings)
       PlayerType::PLAYERTYPE_LOCAL;
   mergedGameSettings.playerSettings[remotePlayerIdx].playerType =
       PlayerType::PLAYERTYPE_REMOTE;
+
+  // TODO: for now just set port 3 and 4 as disconnect/NONE
+  mergedGameSettings.playerSettings[remotePlayerIdx].playerType =
+  PlayerType::PLAYERTYPE_NONE;
 
   // if we're not host, we just connected to host and received their game settings,
   // now we need to send our game settings back to them so they can start their game too
