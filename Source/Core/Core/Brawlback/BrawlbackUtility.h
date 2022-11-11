@@ -129,11 +129,17 @@ namespace Brawlback {
     int SavestateChecksum(std::vector<ssBackupLoc>* backupLocs);
 
     inline bool isInputsEqual(const BrawlbackPad& p1, const BrawlbackPad& p2) {
+        // TODO: this code is duplicated on the .cpp make it dry or I don't know
         bool buttons = p1.buttons == p2.buttons;
+        bool holdButtons = p1.holdButtons == p2.holdButtons;
+        bool rapidFireButtons = p1.rapidFireButtons == p2.rapidFireButtons;
+        bool releasedButtons = p1.releasedButtons == p2.releasedButtons;
+        bool newPressedButtons = p1.newPressedButtons == p2.newPressedButtons;
         bool triggers = p1.LTrigger == p2.LTrigger && p1.RTrigger == p2.RTrigger;
         bool analogSticks = p1.stickX == p2.stickX && p1.stickY == p2.stickY;
         bool cSticks = p1.cStickX == p2.cStickX && p1.cStickY == p2.cStickY;
-        return buttons && triggers && analogSticks && cSticks;
+        return buttons && holdButtons && rapidFireButtons && releasedButtons && newPressedButtons && analogSticks && cSticks && triggers;
+
         //return memcmp(&p1, &p2, sizeof(BrawlbackPad)) == 0;
     }
 

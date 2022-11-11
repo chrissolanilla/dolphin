@@ -93,13 +93,17 @@ namespace Brawlback
             //bool frames = p1.frame == p2.frame;
             //bool idxs = p1.playerIdx == p2.playerIdx;
             bool buttons = p1.pad.buttons == p2.pad.buttons;
+            bool holdButtons = p1.pad.holdButtons == p2.pad.holdButtons;
+            bool rapidFireButtons = p1.pad.rapidFireButtons == p2.pad.rapidFireButtons;
+            bool releasedButtons = p1.pad.releasedButtons == p2.pad.releasedButtons;
+            bool newPressedButtons = p1.pad.newPressedButtons == p2.pad.newPressedButtons;
             bool sticks = p1.pad.stickX == p2.pad.stickX &&
                           p1.pad.stickY == p2.pad.stickY &&
                           p1.pad.cStickX == p2.pad.cStickX &&
                           p1.pad.cStickY == p2.pad.cStickY;
             bool triggers = p1.pad.LTrigger == p2.pad.LTrigger &&
                             p1.pad.RTrigger == p2.pad.RTrigger;
-            return buttons && sticks && triggers;
+            return buttons && holdButtons && rapidFireButtons && releasedButtons && newPressedButtons && sticks && triggers;
         }
 
     }

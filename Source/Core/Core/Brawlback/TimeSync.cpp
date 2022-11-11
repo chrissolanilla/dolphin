@@ -50,7 +50,7 @@ bool TimeSync::shouldStallFrame(s32 currentFrame, s32 latestRemoteFrame, u8 numP
 	if (isTimeSyncFrame && !this->isSkipping)
 	{
 		s32 offsetUs = this->calcTimeOffsetUs(numPlayers);
-		WARN_LOG(BRAWLBACK, "[Frame %u] Offset is: %d us", currentFrame, offsetUs);
+		// WARN_LOG(BRAWLBACK, "[Frame %u] Offset is: %d us", currentFrame, offsetUs);
 
 		// TODO: figure out a better solution here for doubles?
 		if (offsetUs > TIMESYNC_MAX_US_OFFSET)
@@ -258,7 +258,7 @@ s32 TimeSync::calcTimeOffsetUs(u8 numPlayers) {
 	}
 
 
-    INFO_LOG(BRAWLBACK, "Max time offset: %i\n", maxOffset);
+    // INFO_LOG(BRAWLBACK, "Max time offset: %i\n", maxOffset);
 	return maxOffset;
 }
 

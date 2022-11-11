@@ -183,9 +183,8 @@ void CEXIBrawlback::SaveState(s32 frame)
   // INFO_LOG(BRAWLBACK, "Savestate for frame %i checksum is %i\n", ss->frame, ss->checksum);
   activeSavestates[frame] = std::move(ss);
 
-  u32 timeDiff = (u32)(Common::Timer::GetTimeUs() - startTime);
-  INFO_LOG(BRAWLBACK, "Captured savestate for frame %d in: %f ms", frame,
-           ((double)timeDiff) / 1000);
+  //u32 timeDiff = (u32)(Common::Timer::GetTimeUs() - startTime);
+  //INFO_LOG(BRAWLBACK, "Captured savestate for frame %d in: %f ms", frame, ((double)timeDiff) / 1000);
 }
 
 void CEXIBrawlback::handleLoadSavestate(u8* data)
@@ -278,6 +277,7 @@ PlayerFrameData CreateBlankPlayerFrameData(u32 frame, u8 playerIdx)
   dummy_framedata.frame = frame;
   dummy_framedata.playerIdx = playerIdx;
   dummy_framedata.pad = BrawlbackPad();  // empty pad
+  dummy_framedata.sysPad = BrawlbackPad();  // empty pad
   return dummy_framedata;
 }
 FrameData CreateBlankFrameData(u32 frame) {
@@ -358,7 +358,7 @@ void CEXIBrawlback::handleLocalPadData(u8* data)
 void CEXIBrawlback::handleFrameDataRequest(u8* data) {
 
     s32 currentFrame = (s32)SlippiUtility::Mem::readWord(data);
-    INFO_LOG(BRAWLBACK, "Game requested inputs for frame %i\n", currentFrame);
+    //INFO_LOG(BRAWLBACK, "Game requested inputs for frame %i\n", currentFrame);
 
     FrameData framedataToSendToGame;
 
@@ -399,7 +399,7 @@ PlayerFrameData CEXIBrawlback::getLocalInputs(const s32& frame) {
        // WARN_LOG(BRAWLBACK, "Local pad input range: [%u - %u]\n", this->localPlayerFrameData.front()->frame, this->localPlayerFrameData.back()->frame);
         return CreateBlankPlayerFrameData(frame, this->localPlayerIdx);
     }
-    INFO_LOG(BRAWLBACK, "Got local inputs frame = %u\n", localFrameData->frame);
+    //INFO_LOG(BRAWLBACK, "Got local inputs frame = %u\n", localFrameData->frame);
     return *localFrameData;
 }
 
@@ -433,13 +433,13 @@ void CEXIBrawlback::updateSync(s32& localFrame, u8 playerIdx) {
         }
     }
     else {
-        INFO_LOG(BRAWLBACK, "Not predicting\n");
+        //INFO_LOG(BRAWLBACK, "Not predicting\n");
     }
 
     // remote inputs match predicted inputs or not predicting
     if (isSynchronized) {
         this->latestConfirmedFrame = finalFrame;
-        INFO_LOG(BRAWLBACK, "is synchronized!\n");
+        //INFO_LOG(BRAWLBACK, "is synchronized!\n");
     }
     else {
         // not synchronized, rollback & resim
@@ -451,7 +451,7 @@ void CEXIBrawlback::updateSync(s32& localFrame, u8 playerIdx) {
         localFrame = this->latestConfirmedFrame;
     }
 
-    INFO_LOG(BRAWLBACK, "UpdateSync latestConfirmedFrame = %i\n", latestConfirmedFrame);
+    //INFO_LOG(BRAWLBACK, "UpdateSync latestConfirmedFrame = %i\n", latestConfirmedFrame);
 }
 bool CEXIBrawlback::shouldRollback(s32 localFrame) {
     // https://gist.github.com/rcmagic/f8d76bca32b5609e85ab156db38387e9#file-rollbackpseudocode-txt-L30
@@ -476,7 +476,7 @@ PlayerFrameData CEXIBrawlback::getRemoteInputs(s32& localFrame, u8 playerIdx) {
 
         if (remoteFrameData) {
             finalRemoteInputs = *remoteFrameData;
-            INFO_LOG(BRAWLBACK, "Found remote inputs frame = %u\n", finalRemoteInputs.frame);
+            //INFO_LOG(BRAWLBACK, "Found remote inputs frame = %u\n", finalRemoteInputs.frame);
             isPredicting = false;
         }
         else {
@@ -661,7 +661,7 @@ void CEXIBrawlback::ProcessIndividualRemoteFrameData(PlayerFrameData* framedata)
         }
     }
 
-    INFO_LOG(BRAWLBACK, "Received opponent framedata. Player %u frame: %u\n", (unsigned int)playerIdx, frame);
+    // INFO_LOG(BRAWLBACK, "Received opponent framedata. Player %u frame: %u\n", (unsigned int)playerIdx, frame);
 
     std::unique_ptr<PlayerFrameData> f = std::make_unique<PlayerFrameData>(*framedata);
     remoteFramedataQueue.push_back(std::move(f));
@@ -689,14 +689,16 @@ void print_half(u16 half)
   print_byte(byte1);
 }
 
-void printInputs(const BrawlbackPad& pad) {
+void printInputs
+(const BrawlbackPad& pad)
+{
   INFO_LOG(BRAWLBACK, " -- Pad --\n");
   INFO_LOG(BRAWLBACK, "StickX: %hhu ", pad.stickX);
   INFO_LOG(BRAWLBACK, "StickY: %hhu ", pad.stickY);
   INFO_LOG(BRAWLBACK, "CStickX: %hhu ", pad.cStickX);
   INFO_LOG(BRAWLBACK, "CStickY: %hhu\n", pad.cStickY);
   INFO_LOG(BRAWLBACK, "Buttons: ");
-  print_half(pad.buttons);
+  print_half(pad.newPressedButtons);
   INFO_LOG(BRAWLBACK, " LTrigger: %u    RTrigger %u\n", pad.LTrigger, pad.RTrigger);
   //OSReport(" ---------\n"); 
 }
@@ -717,8 +719,12 @@ void CEXIBrawlback::ProcessRemoteFrameData(PlayerFrameData* framedatas, u8 numFr
 
   // Just print for other player
   if(this->isHost && playerIdx == 1) {
-    INFO_LOG(BRAWLBACK, "Received remote inputs from %i", playerIdx);
-    printInputs(mostRecentFramedata->pad);
+    //INFO_LOG(BRAWLBACK, "Received remote inputs from %i", playerIdx);
+    if (mostRecentFramedata->sysPad.newPressedButtons > 0)
+    {
+      printInputs(mostRecentFramedata->sysPad);
+
+    }
   }
   // if (!this->remotePlayerFrameData[playerIdx].empty())
   // INFO_LOG(BRAWLBACK, "Received remote inputs. Head frame %u  received head frame %u\n",
@@ -1336,8 +1342,8 @@ void CEXIBrawlback::DMAWrite(u32 address, u32 size)
   break;
   case CMD_TIMER_END:
   {
-    u32 timeDiff = Common::Timer::GetTimeUs() - frameTime;
-    INFO_LOG(BRAWLBACK, "Game logic took %f ms\n", (double)(timeDiff / 1000.0));
+    // u32 timeDiff = Common::Timer::GetTimeUs() - frameTime;
+    // INFO_LOG(BRAWLBACK, "Game logic took %f ms\n", (double)(timeDiff / 1000.0));
   }
   break;
 
