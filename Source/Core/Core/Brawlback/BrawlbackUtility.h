@@ -62,6 +62,8 @@ namespace Brawlback {
       CMD_ROLLBACK = 17,
       CMD_FRAMEADVANCE = 18,
 
+      CMD_SAVESTATE_REGION = 22,
+
       // REPLAYS
       CMD_REPLAY_START_REPLAYS_STRUCT = 19,
       CMD_REPLAY_REPLAYS_STRUCT = 20,
@@ -152,8 +154,6 @@ namespace Brawlback {
     PlayerFrameData* findInPlayerFrameDataQueue(const PlayerFrameDataQueue& queue,
                                                            u32 frame);
 
-    int SavestateChecksum(std::vector<ssBackupLoc>* backupLocs);
-
     inline bool isInputsEqual(const BrawlbackPad& p1, const BrawlbackPad& p2) {
         bool buttons = p1.buttons == p2.buttons;
         bool triggers = p1.LTrigger == p2.LTrigger && p1.RTrigger == p2.RTrigger;
@@ -185,10 +185,13 @@ namespace Brawlback {
     }
 
 
-    inline int MAX(int x, int y) { return (((x) > (y)) ? (x) : (y)); }
-    inline int MIN(int x, int y) { return (((x) < (y)) ? (x) : (y)); }
+    template <typename T>
+    inline T MAX(T x, T y) { return (((x) > (y)) ? (x) : (y)); }
+    template <typename T>
+    inline T MIN(T x, T y) { return (((x) < (y)) ? (x) : (y)); }
     // 1 if in range (inclusive), 0 otherwise
-    inline int RANGE(int i, int min, int max) { return ((i < min) || (i > max) ? 0 : 1); }
+    template <typename T>
+    inline T RANGE(T i, T min, T max) { return ((i < min) || (i > max) ? 0 : 1); }
 
     namespace Dump {
         void DoMemDumpIteration(int& dump_num);

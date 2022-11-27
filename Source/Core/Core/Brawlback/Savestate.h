@@ -1,6 +1,7 @@
 #pragma once
 
 #include "SlippiUtility.h"
+#include "BrawlbackUtility.h"
 
 using namespace SlippiUtility::Savestate;
 
@@ -12,33 +13,31 @@ class BrawlbackSavestate
 public:
 
 
-    BrawlbackSavestate();
+    BrawlbackSavestate(SavestateMemRegionInfo* regions = nullptr, u32 numRegions = 0);
     ~BrawlbackSavestate();
 
 
     void Capture();
     void Load(std::vector<PreserveBlock> blocks);
+    void DisplaySavestateSize(const std::vector<SlippiUtility::Savestate::ssBackupLoc>& regions);
+    void DisplaySavestateSize(const std::map<u32, ssBackupLoc>& regions);
+    void DisplaySavestateSize();
 
-    //static bool shouldForceInit;
+    void UpdateDynamicMemRegionsForSavestate(SavestateMemRegionInfo* regions, u32 numRegions);
 
     std::vector<ssBackupLoc>* getBackupLocs() { return &backupLocs; }
+    
+    std::vector<ssBackupLoc> backupLocs = {};
+    std::vector<ssBackupLoc> dynamicLocs = {};
 
-    int frame = -1;
-    int checksum = -1;
+    std::map<u32, ssBackupLoc> memRegionMap = {};
 private:
 
 
-    std::vector<ssBackupLoc> backupLocs = {};
-    std::unordered_map<PreserveBlock, std::vector<u8>, preserve_hash_fn, preserve_eq_fn> preservationMap;
-    std::vector<u8> dolphinSsBackup = {};
 
-    void getDolphinState(PointerWrap& p);
 
 
     void initBackupLocs();
-
-    //std::thread firstHalf;
-    //std::thread secondHalf;
 
 
 };

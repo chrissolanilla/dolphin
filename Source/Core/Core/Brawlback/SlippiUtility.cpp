@@ -13,18 +13,20 @@ namespace SlippiUtility
         return pb1.address < pb2.address;
     }
 
-    void SlippiInitBackupLocations(std::vector<ssBackupLoc>& backupLocs,
+    /// populates backupLocs with the specified backup regions, taking into account any sections we want to exclude
+    void SlippiAppendBackupLocations(std::vector<ssBackupLoc>& backupLocs,
                                     std::vector<ssBackupLoc>& fullBackupRegions,
                                     std::vector<PreserveBlock>& excludeSections)
     {
-        static std::vector<ssBackupLoc> processedLocs = {};
+        
+        /*static std::vector<ssBackupLoc> processedLocs = {};
 
         // If the processed locations are already computed, just copy them directly
-        if (processedLocs.size() /*&& !shouldForceInit*/)
+        if (processedLocs.size())
         {
             backupLocs.insert(backupLocs.end(), processedLocs.begin(), processedLocs.end());
             return;
-        }
+        }*/
 
         // shouldForceInit = false;
 
@@ -94,8 +96,59 @@ namespace SlippiUtility
             }
         }
 
-        processedLocs.clear();
-        processedLocs.insert(processedLocs.end(), backupLocs.begin(), backupLocs.end());
+        //processedLocs.clear();
+        //processedLocs.insert(processedLocs.end(), backupLocs.begin(), backupLocs.end());
+    }
+
+    void ExcludeSectionsFromMap(std::map<u32, ssBackupLoc>& memRegionMap, std::vector<PreserveBlock>& excludeSections) {
+        //                                                <=         <=    or equal to????
+        #define IS_RANGES_OVERLAPPING(x1, x2, y1, y2) (x1 < y2 && y1 < x2)
+
+        for (auto it = excludeSections.begin(); it != excludeSections.end(); ++it)
+        {
+            PreserveBlock ipb = *it;
+            u32 excludeEndAddresss = ipb.address + ipb.length;
+
+            for (auto& [key, backupLoc] : memRegionMap) {
+                u32 backupLocEndAddress = backupLoc.startAddress + backupLoc.endAddress;
+                if (IS_RANGES_OVERLAPPING(backupLoc.startAddress, backupLocEndAddress, ipb.address, excludeEndAddresss)) {
+
+                    // Handle case where our exclusion starts before the actual backup section
+                    if (ipb.address < backupLoc.startAddress)
+                    {
+                        int newSize = (s32)ipb.length - ((s32)backupLoc.startAddress - (s32)ipb.address);
+
+                        ipb.length = newSize > 0 ? newSize : 0;
+                        ipb.address = backupLoc.startAddress;
+                        continue;
+                    }
+
+                    // Determine new size (how much we removed from backup)
+                    int newSize = (s32)ipb.length - ((s32)backupLoc.endAddress - (s32)ipb.address);
+
+                    // Add split section after exclusion
+                    if (backupLoc.endAddress > ipb.address + ipb.length)
+                    {
+                        ssBackupLoc newLoc = {ipb.address + ipb.length, backupLoc.endAddress, nullptr};
+                        memRegionMap[newLoc.startAddress] = newLoc;
+                    }
+
+                    // Modify section to end at the exclusion start
+                    backupLoc.endAddress = ipb.address;
+                    if (backupLoc.endAddress <= backupLoc.startAddress)
+                    {
+                        memRegionMap.erase(backupLoc.startAddress);
+                    }
+
+                    // Set new size to see if there's still more to process
+                    newSize = newSize > 0 ? newSize : 0;
+                    ipb.address = ipb.address + (ipb.length - newSize);
+                    ipb.length = (u32)newSize;
+
+                }
+            }
+        }
+
     }
 
 
