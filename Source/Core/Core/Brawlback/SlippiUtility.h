@@ -3,7 +3,7 @@
 #include "Common/CommonTypes.h"
 #include <unordered_map>
 #include "Common/ChunkFile.h"
-#include "brawlback-exi-structures/ExiStructures.h"
+#include "brawlback-common/ExiStructures.h"
 /*
 ============================================
 This, along with SlippiUtility.cpp is a place to hold code from the Slippi repo.

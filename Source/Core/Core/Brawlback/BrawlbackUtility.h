@@ -15,7 +15,7 @@
 #include "SlippiUtility.h"
 #include "Brawltypes.h"
 #include "Savestate.h"
-#include "brawlback-exi-structures/ExiStructures.h"
+#include "brawlback-common/ExiStructures.h"
 
 
 // ---
