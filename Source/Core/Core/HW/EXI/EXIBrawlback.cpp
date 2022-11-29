@@ -1,5 +1,3 @@
-
-
 #include "EXIBrawlback.h"
 #include "Core/ConfigManager.h"
 #include "Core/HW/Memmap.h"
@@ -13,7 +11,6 @@
 #include <regex>
 #include <Core/Brawlback/include/brawlback-common/ExiStructures.h>
 namespace fs = std::filesystem;
-
 // --- Mutexes
 std::mutex read_queue_mutex = std::mutex();
 std::mutex remotePadQueueMutex = std::mutex();
@@ -440,7 +437,7 @@ PlayerFrameData CEXIBrawlback::getLocalInputs(const s32& frame) {
     if (!localFrameData || this->localPlayerFrameData.empty()) {
         // this shouldn't happen
         ERROR_LOG(BRAWLBACK, "Couldn't find local inputs! Using empty pad.\n");
-        WARN_LOG(BRAWLBACK, "Local pad input range: [%u - %u]\n", this->localPlayerFrameData.front()->frame, this->localPlayerFrameData.back()->frame);
+        //WARN_LOG(BRAWLBACK, "Local pad input range: [%u - %u]\n", this->localPlayerFrameData.front()->frame, this->localPlayerFrameData.back()->frame);
         return CreateBlankPlayerFrameData(frame, this->localPlayerIdx);
     }
     INFO_LOG(BRAWLBACK, "Got local inputs frame = %u\n", localFrameData->frame);
@@ -611,7 +608,7 @@ void CEXIBrawlback::storeLocalInputs(PlayerFrameData* localPlayerFramedata) {
     }
     else
     {
-      // WARN_LOG(BRAWLBACK, "Didn't push local framedata for frame %u\n", pFD->frame);
+      WARN_LOG(BRAWLBACK, "Didn't push local framedata for frame %u due to a lack of sequence; check lines 596-608 of EXIBrawlback.cpp\n", pFD->frame);
     }
 }
 
@@ -812,16 +809,14 @@ void CEXIBrawlback::ProcessGameSettings(GameSettings* opponentGameSettings)
     // get a random stage on the non-host side.
     mergedGameSettings.stageID = matchmaking->GetRandomStage();
 
-    // if not host, your character will be p2, if host, your char will be p1
-
-    // copy char into both slots
+    // if not host, your character will be p2; if host, your char will be p1
+     // copy char into both slots
     mergedGameSettings.playerSettings[1].charID = mergedGameSettings.playerSettings[0].charID;
     // copy char from opponent p1 into our p1
     mergedGameSettings.playerSettings[0].charID = opponentGameSettings->playerSettings[0].charID;
   }
   else
   {  // is host
-    // copy char from opponent's p2 into our p2
     mergedGameSettings.playerSettings[1].charID = opponentGameSettings->playerSettings[1].charID;
 
     // set our stage based on the one the other client generated
@@ -1024,7 +1019,6 @@ void CEXIBrawlback::connectToOpponent()
 void CEXIBrawlback::handleFindMatch(u8* payload)
 {
   // if (!payload) return;
-
 #ifdef LOCAL_TESTING
   ENetAddress address;
   address.host = ENET_HOST_ANY;
