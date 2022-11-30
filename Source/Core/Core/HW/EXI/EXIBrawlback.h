@@ -39,7 +39,6 @@ private:
   void handleStartReplaysStruct(u8* payload);
   void handleReplaysStruct(u8* payload);
   void handleEndOfReplay();
-  void handleSavestateRegion(u8* payload, u32 size);
 
   template <typename T>
   void SendCmdToGame(EXICommand cmd, T* payload);
@@ -87,14 +86,12 @@ private:
   std::unique_ptr<TimeSync> timeSync;
   // -------------------------------
 
-  int numTimesyncs = 0;
-  int numRollbacks = 0;
-
   // --- Rollback
-  bool isPredicting; // if we are using past inputs for this frame or not
-  FrameData predictedInputs; // predicted inputs from some previous frame
-  u32 framesToAdvance = 1; // number of "frames" to advance the simulation on this frame
-  int latestConfirmedFrame = 0; // Tracks the last frame where we synchronized the game state with the remote client
+  bool isPredicting;          // if we are using past inputs for this frame or not
+  FrameData predictedInputs;  // predicted inputs from some previous frame
+  u32 framesToAdvance = 1;    // number of "frames" to advance the simulation on this frame
+  int latestConfirmedFrame =
+      0;  // Tracks the last frame where we synchronized the game state with the remote client
 
   void updateSync(s32& localFrame, u8 playerIdx);
   bool shouldRollback(s32 localFrame);
@@ -104,6 +101,9 @@ private:
   // -------------------------------
 
   // --- Savestates
+  std::deque<std::unique_ptr<BrawlbackSavestate>> savestates = {};
+  std::unordered_map<u32, BrawlbackSavestate*> savestatesMap = {};
+
   std::map<s32, std::unique_ptr<BrawlbackSavestate>> activeSavestates = {};
   std::deque<std::unique_ptr<BrawlbackSavestate>> availableSavestates = {};
   // -------------------------------
@@ -117,8 +117,8 @@ private:
   // local player input history. Always holds FRAMEDATA_MAX_QUEUE_SIZE of past inputs
   PlayerFrameDataQueue localPlayerFrameData = {};
 
-
-  // remote player input history (indexes are player indexes). Always holds FRAMEDATA_MAX_QUEUE_SIZE of past inputs
+  // remote player input history (indexes are player indexes). Always holds FRAMEDATA_MAX_QUEUE_SIZE
+  // of past inputs
   std::array<PlayerFrameDataQueue, MAX_NUM_PLAYERS> remotePlayerFrameData = {};
   // -------------------------------
 
