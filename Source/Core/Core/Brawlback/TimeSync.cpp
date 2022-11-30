@@ -28,12 +28,12 @@ bool TimeSync::shouldStallFrame(s32 currentFrame, s32 latestRemoteFrame, u8 numP
     bool frameDiffCheck;
     if (ROLLBACK_IMPL)
     {
-      INFO_LOG(BRAWLBACK, "ROLLBACK IS ENABLED!");
+      INFO_LOG(BRAWLBACK, "ROLLBACK IS ENABLED! FRAMEDIFF: %s", dispStr.str().c_str());
       frameDiffCheck = frameDiff >= MAX_ROLLBACK_FRAMES;
     }
     else
     {
-      INFO_LOG(BRAWLBACK, "ROLLBACK IS NOT ENABLED!");
+      INFO_LOG(BRAWLBACK, "ROLLBACK IS NOT ENABLED! FRAMEDIFF: %s", dispStr.str().c_str());
       frameDiffCheck = frameDiff > FRAME_DELAY;
     }
 

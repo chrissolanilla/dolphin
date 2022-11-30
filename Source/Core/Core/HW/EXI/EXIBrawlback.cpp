@@ -394,6 +394,7 @@ void CEXIBrawlback::handleLocalPadData(u8* data)
     }
     else
     {
+        INFO_LOG(BRAWLBACK, "Should not time sync\n");
         // store these local inputs (with frame delay)
         this->storeLocalInputs(&localPlayerFramedata);
         // broadcasts local inputs
@@ -608,7 +609,7 @@ void CEXIBrawlback::storeLocalInputs(PlayerFrameData* localPlayerFramedata) {
     }
     else
     {
-      WARN_LOG(BRAWLBACK, "Didn't push local framedata for frame %u due to a lack of sequence; check lines 596-608 of EXIBrawlback.cpp\n", pFD->frame);
+      WARN_LOG(BRAWLBACK, "Didn't push local framedata for frame %u due to a lack of sequence\n", pFD->frame);
     }
 }
 
@@ -723,16 +724,6 @@ void CEXIBrawlback::ProcessIndividualRemoteFrameData(PlayerFrameData* framedata)
 void CEXIBrawlback::ProcessRemoteFrameData(PlayerFrameData* framedatas, u8 numFramedatas_u8)
 {
   s32 numFramedatas = (s32)numFramedatas_u8;
-  // framedatas may point to one or more PlayerFrameData's.
-  // Also note. this array is the reverse of the local pad queue, in that
-  // the 0th element here is the most recent framedata.
-  PlayerFrameData* mostRecentFramedata = &framedatas[0];
-  u32 frame = mostRecentFramedata->frame;
-  u8 playerIdx = mostRecentFramedata->playerIdx;  // remote player idx
-
-  // acknowledge that we received opponent's framedata
-  BroadcastFramedataAck(frame, playerIdx, this->netplay.get(), this->server);
-  // ---------------------
 
   // if (!this->remotePlayerFrameData[playerIdx].empty())
   // INFO_LOG(BRAWLBACK, "Received remote inputs. Head frame %u  received head frame %u\n",
@@ -740,6 +731,15 @@ void CEXIBrawlback::ProcessRemoteFrameData(PlayerFrameData* framedatas, u8 numFr
 
   if (numFramedatas > 0)
   {
+    // framedatas may point to one or more PlayerFrameData's.
+    // Also note. this array is the reverse of the local pad queue, in that
+    // the 0th element here is the most recent framedata.
+    PlayerFrameData* mostRecentFramedata = &framedatas[0];
+    u32 frame = mostRecentFramedata->frame;
+    u8 playerIdx = mostRecentFramedata->playerIdx;  // remote player idx
+
+    // acknowledge that we received opponent's framedata
+    BroadcastFramedataAck(frame, playerIdx, this->netplay.get(), this->server);
     std::lock_guard<std::mutex> lock(remotePadQueueMutex);
 
     std::stringstream s;
@@ -749,7 +749,7 @@ void CEXIBrawlback::ProcessRemoteFrameData(PlayerFrameData* framedatas, u8 numFr
       s << framedatas[i].frame << " , ";
     }
     s << "]";
-    // INFO_LOG(BRAWLBACK, "%s\n", s.str().c_str());
+    INFO_LOG(BRAWLBACK, "%s\n", s.str().c_str());
 
     u32 maxFrame = 0;
     // index 0 is most recent, and we want to process new framedata oldest first, then newer ones
@@ -857,6 +857,7 @@ void CEXIBrawlback::ProcessNetReceive(ENetEvent* event)
     {
       u8 numFramedatas = data[0];
       PlayerFrameData* framedata = (PlayerFrameData*)(&data[1]);
+      SwapPlayerFrameDataEndianness(*framedata);
       this->ProcessRemoteFrameData(framedata, numFramedatas);
     }
     break;

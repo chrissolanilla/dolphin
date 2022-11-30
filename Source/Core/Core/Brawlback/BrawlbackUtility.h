@@ -5,6 +5,7 @@
 #include <fstream>
 #include <optional>
 #include <random>
+#include <intrin.h>
 
 #include "Common/FileUtil.h"
 #include "Common/CommonTypes.h"
@@ -97,13 +98,20 @@ namespace Brawlback {
         bool isPlayerFrameDataEqual(const PlayerFrameData& p1, const PlayerFrameData& p2);
     }
 
-    template <class T>
-    inline T swap_endian(T in)
+    // https://mklimenko.github.io/english/2018/08/22/robust-endian-swap/
+    template <typename T>
+    T swap_endian(T val)
     {
-        char* const p = reinterpret_cast<char*>(&in);
-        for (size_t i = 0; i < sizeof(T) / 2; ++i)
-            std::swap(p[i], p[sizeof(T) - i - 1]);
-        return in;
+      union U
+      {
+        T val;
+        std::array<std::uint8_t, sizeof(T)> raw;
+      } src, dst;
+
+      src.val = val;
+      std::reverse_copy(src.raw.begin(), src.raw.end(), dst.raw.begin());
+      val = dst.val;
+      return val;
     }
 
     inline void SwapPlayerFrameDataEndianness(PlayerFrameData& pfd) {
@@ -118,6 +126,7 @@ namespace Brawlback {
         for (int i = 0; i < MAX_NUM_PLAYERS; i++) {
             SwapPlayerFrameDataEndianness(fd.playerFrameDatas[i]);
         }
+        swap_endian(fd.randomSeed);
     }
 
     inline void PrintSyncData(const SyncData& data) {
