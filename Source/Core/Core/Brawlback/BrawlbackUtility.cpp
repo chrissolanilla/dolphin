@@ -93,7 +93,8 @@ bool isPlayerFrameDataEqual(const PlayerFrameData& p1, const PlayerFrameData& p2
 {
   // bool frames = p1.frame == p2.frame;
   // bool idxs = p1.playerIdx == p2.playerIdx;
-  bool buttons = p1.pad.buttons == p2.pad.buttons;
+  bool buttons = p1.pad.RTrigger == p2.pad.RTrigger && p1.pad.LTrigger == p2.pad.LTrigger &&
+                 p1.pad.buttons == p2.pad.buttons;
   bool sticks = p1.pad.stickX == p2.pad.stickX && p1.pad.stickY == p2.pad.stickY &&
                 p1.pad.cStickX == p2.pad.cStickX && p1.pad.cStickY == p2.pad.cStickY;
   bool triggers = p1.pad.LTrigger == p2.pad.LTrigger && p1.pad.RTrigger == p2.pad.RTrigger;
@@ -189,6 +190,7 @@ std::string stringifyPad(const BrawlbackPad& pad)
 {
   std::string inputs;
 
+
   std::string sticks =
       "[StickX: " + std::to_string(pad.stickX) + "] [StickY: " + std::to_string(pad.stickY) + "]\n";
   inputs.append(sticks);
@@ -198,7 +200,9 @@ std::string stringifyPad(const BrawlbackPad& pad)
   inputs.append(csticks);
 
   std::string triggers = "[LTrigger: " + std::to_string(pad.LTrigger) +
-                         "] [RTrigger: " + std::to_string(pad.RTrigger) + "]\n";
+                         "] [RTrigger: " + std::to_string(pad.RTrigger) + "] " +
+                         "[LAnalogue: " + std::to_string(pad.LAnalogue) + "] " +
+                         "[RAnalogue: " + std::to_string(pad.RAnalogue) + "]\n";
   inputs.append(triggers);
 
   std::string buttons = "[Buttons: " + str_half(pad.buttons) + "]\n";
