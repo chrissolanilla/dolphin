@@ -23,6 +23,8 @@ public:
 
   bool IsPresent() const;
 
+  std::string replayDirectory;
+
 private:
   // byte vector for sending into to the game
   std::vector<u8> read_queue = {};

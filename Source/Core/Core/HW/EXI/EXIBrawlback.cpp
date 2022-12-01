@@ -1235,6 +1235,8 @@ void CEXIBrawlback::handleStartReplaysStruct(u8* payload)
     std::memcpy(&startReplay, payload, sizeof(StartReplay));
     fixStartReplayEndianness(startReplay);
     serializeStartReplay(startReplay);
+    this->replayDirectory = SConfig::GetInstance().m_brawlbackReplayDir + "/" +
+                            SConfig::GetInstance().m_details_game_id;
   }
 }
 
@@ -1333,14 +1335,11 @@ void CEXIBrawlback::handleEndOfReplay()
   if (SConfig::GetInstance().m_brawlbackSaveReplays)
   {
     auto ubjson = json::to_ubjson(this->curReplayJson);
-    if (!std::filesystem::exists(SConfig::GetInstance().m_brawlbackReplayDir + "/" +
-                                 SConfig::GetInstance().m_details_game_id))
+    if (!std::filesystem::exists(replayDirectory))
     {
-      std::filesystem::create_directory(SConfig::GetInstance().m_brawlbackReplayDir + "/" +
-                                        SConfig::GetInstance().m_details_game_id);
+      std::filesystem::create_directory(replayDirectory);
     }
-    writeToFile(SConfig::GetInstance().m_brawlbackReplayDir + "/" +
-                SConfig::GetInstance().m_details_game_id + "/" +
+    writeToFile(replayDirectory + "/" +
                 this->curReplayName + ".brba", ubjson.data(), ubjson.size());
   }
 }
@@ -1350,6 +1349,7 @@ void CEXIBrawlback::handleGetStartReplay(int index)
   StartReplay startReplay;
   auto indexReplay = this->getReplayJsonAtIndex(index);
   auto name = this->getReplayNameAtIndex(index);
+  this->replayDirectory = SConfig::GetInstance().m_brawlbackReplayDir + "/" + SConfig::GetInstance().m_details_game_id;
   if (indexReplay == json({}) || name == std::string())
   {
     SendCmdToGame(CMD_BAD_INDEX);
@@ -1387,7 +1387,7 @@ void CEXIBrawlback::handleGetNextFrame(u8* payload, int index)
 {
   int frameNumber;
   std::memcpy(&frameNumber, payload, sizeof(int));
-  swap_endian(frameNumber);
+  frameNumber = swap_endian(frameNumber);
 
   auto indexJson = this->getReplayJsonAtIndex(index);
   if (indexJson == json({}))
@@ -1450,7 +1450,7 @@ void CEXIBrawlback::handleGetNextFrame(u8* payload, int index)
 
 void CEXIBrawlback::handleNumReplays()
 {
-  auto numReplays = getNumReplays(SConfig::GetInstance().m_brawlbackReplayDir + "/" + SConfig::GetInstance().m_details_game_id);
+  auto numReplays = getNumReplays(replayDirectory);
   SendCmdToGame(CMD_GET_NUM_REPLAYS, &numReplays);
 }
 
@@ -1462,7 +1462,7 @@ void CEXIBrawlback::handleSetReplayIndex(u8* payload)
 
 json CEXIBrawlback::getReplayJsonAtIndex(int index)
 {
-  auto replays = getReplays(SConfig::GetInstance().m_brawlbackReplayDir + "/" + SConfig::GetInstance().m_details_game_id);
+  auto replays = getReplays(replayDirectory);
   if (index > replays.size() - 1)
   {
     return json({});
@@ -1499,7 +1499,7 @@ std::vector<std::vector<u8>> CEXIBrawlback::getReplays(std::string path)
 
 std::string CEXIBrawlback::getReplayNameAtIndex(int index)
 {
-  auto names = getReplayNames(SConfig::GetInstance().m_brawlbackReplayDir + "/" + SConfig::GetInstance().m_details_game_id);
+  auto names = getReplayNames(replayDirectory);
   if (index > names.size() - 1)
   {
     return std::string();
