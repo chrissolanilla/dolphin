@@ -1353,7 +1353,6 @@ void CEXIBrawlback::handleEndOfReplay()
 void CEXIBrawlback::handleGetStartReplay(u8* payload)
 {
   std::memcpy(&this->curIndex, payload, sizeof(u8));
-  this->curIndex = swap_endian(this->curIndex);
   StartReplay startReplay;
   auto indexReplay = this->getReplayJsonAtIndex(this->curIndex);
   auto name = this->getReplayNameAtIndex(this->curIndex);

@@ -59,7 +59,7 @@ private:
   u8 getNumReplays(std::string path);
   json getReplayJsonAtIndex(int index);
   std::string getReplayNameAtIndex(int index);
-  int curIndex;
+  u8 curIndex;
   json curReplayJson;
   std::string curReplayName;
   // -------------------------------
