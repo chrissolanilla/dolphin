@@ -22,12 +22,18 @@ std::mutex localPadQueueMutex = std::mutex();
 // -------------------------------
 
 template <class T>
-[[nodiscard]] T swap_endian(T in)
+[[nodiscard]] T swap_endian(T val)
 {
-  char* const p = reinterpret_cast<char*>(&in);
-  for (size_t i = 0; i < sizeof(T) / 2; ++i)
-    std::swap(p[i], p[sizeof(T) - i - 1]);
-  return in;
+  union U
+  {
+    T val;
+    std::array<std::uint8_t, sizeof(T)> raw;
+  } src, dst;
+
+  src.val = val;
+  std::reverse_copy(src.raw.begin(), src.raw.end(), dst.raw.begin());
+  val = dst.val;
+  return val;
 }
 void writeToFile(std::string filename, uint8_t* ptr, size_t len)
 {
@@ -1235,8 +1241,6 @@ void CEXIBrawlback::handleStartReplaysStruct(u8* payload)
     std::memcpy(&startReplay, payload, sizeof(StartReplay));
     fixStartReplayEndianness(startReplay);
     serializeStartReplay(startReplay);
-    this->replayDirectory = SConfig::GetInstance().m_brawlbackReplayDir + "/" +
-                            SConfig::GetInstance().m_details_game_id;
   }
 }
 
@@ -1334,6 +1338,8 @@ void CEXIBrawlback::handleEndOfReplay()
 {
   if (SConfig::GetInstance().m_brawlbackSaveReplays)
   {
+    this->replayDirectory = SConfig::GetInstance().m_brawlbackReplayDir + "/" +
+                            SConfig::GetInstance().m_details_game_id;
     auto ubjson = json::to_ubjson(this->curReplayJson);
     if (!std::filesystem::exists(replayDirectory))
     {
@@ -1349,7 +1355,6 @@ void CEXIBrawlback::handleGetStartReplay(int index)
   StartReplay startReplay;
   auto indexReplay = this->getReplayJsonAtIndex(index);
   auto name = this->getReplayNameAtIndex(index);
-  this->replayDirectory = SConfig::GetInstance().m_brawlbackReplayDir + "/" + SConfig::GetInstance().m_details_game_id;
   if (indexReplay == json({}) || name == std::string())
   {
     SendCmdToGame(CMD_BAD_INDEX);
@@ -1450,6 +1455,8 @@ void CEXIBrawlback::handleGetNextFrame(u8* payload, int index)
 
 void CEXIBrawlback::handleNumReplays()
 {
+  this->replayDirectory = SConfig::GetInstance().m_brawlbackReplayDir + "/" +
+                          SConfig::GetInstance().m_details_game_id;
   auto numReplays = getNumReplays(replayDirectory);
   SendCmdToGame(CMD_GET_NUM_REPLAYS, &numReplays);
 }
