@@ -15,10 +15,12 @@
 #include "Core/ConfigManager.h"
 #include "Core/Core.h"
 #include "Core/PowerPC/BreakPoints.h"
+#include "Core/PowerPC/Expression.h"
 #include "Core/PowerPC/PPCSymbolDB.h"
 #include "Core/PowerPC/PowerPC.h"
 
-#include "DolphinQt/Debugger/NewBreakpointDialog.h"
+#include "DolphinQt/Debugger/BreakpointDialog.h"
+#include "DolphinQt/Debugger/MemoryWidget.h"
 #include "DolphinQt/Resources.h"
 #include "DolphinQt/Settings.h"
 
@@ -85,7 +87,7 @@ void BreakpointWidget::CreateWidgets()
   m_table = new QTableWidget;
   m_table->setTabKeyNavigation(false);
   m_table->setContentsMargins(0, 0, 0, 0);
-  m_table->setColumnCount(5);
+  m_table->setColumnCount(6);
   m_table->setSelectionMode(QAbstractItemView::SingleSelection);
   m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
   m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -159,7 +161,7 @@ void BreakpointWidget::Update()
   m_table->clear();
 
   m_table->setHorizontalHeaderLabels(
-      {tr("Active"), tr("Type"), tr("Function"), tr("Address"), tr("Flags")});
+      {tr("Active"), tr("Type"), tr("Function"), tr("Address"), tr("Flags"), tr("Condition")});
 
   int i = 0;
   m_table->setRowCount(i);
@@ -201,6 +203,13 @@ void BreakpointWidget::Update()
       flags.append(QLatin1Char{'l'});
 
     m_table->setItem(i, 4, create_item(flags));
+
+    QString condition;
+
+    if (bp.condition)
+      condition = QString::fromStdString(bp.condition->GetText());
+
+    m_table->setItem(i, 5, create_item(condition));
 
     i++;
   }
@@ -290,8 +299,25 @@ void BreakpointWidget::OnClear()
 
 void BreakpointWidget::OnNewBreakpoint()
 {
-  NewBreakpointDialog* dialog = new NewBreakpointDialog(this);
+  BreakpointDialog* dialog = new BreakpointDialog(this);
   dialog->exec();
+}
+
+void BreakpointWidget::OnEditBreakpoint(u32 address, bool is_instruction_bp)
+{
+  if (is_instruction_bp)
+  {
+    auto* dialog = new BreakpointDialog(this, PowerPC::breakpoints.GetBreakpoint(address));
+    dialog->exec();
+  }
+  else
+  {
+    auto* dialog = new BreakpointDialog(this, PowerPC::memchecks.GetMemCheck(address));
+    dialog->exec();
+  }
+
+  emit BreakpointsChanged();
+  Update();
 }
 
 void BreakpointWidget::OnLoad()
@@ -355,13 +381,13 @@ void BreakpointWidget::OnContextMenu()
     if (bp_iter == inst_breakpoints.end())
       return;
 
+    menu->addAction(tr("Show in Code"), [this, bp_address] { emit ShowCode(bp_address); });
     menu->addAction(bp_iter->is_enabled ? tr("Disable") : tr("Enable"), [this, &bp_address]() {
       PowerPC::breakpoints.ToggleBreakPoint(bp_address);
 
       emit BreakpointsChanged();
       Update();
     });
-    menu->addAction(tr("Go to"), [this, bp_address] { emit SelectedBreakpoint(bp_address); });
   }
   else
   {
@@ -372,6 +398,7 @@ void BreakpointWidget::OnContextMenu()
     if (mb_iter == memory_breakpoints.end())
       return;
 
+    menu->addAction(tr("Show in Memory"), [this, bp_address] { emit ShowMemory(bp_address); });
     menu->addAction(mb_iter->is_enabled ? tr("Disable") : tr("Enable"), [this, &bp_address]() {
       PowerPC::memchecks.ToggleBreakPoint(bp_address);
 
@@ -379,18 +406,24 @@ void BreakpointWidget::OnContextMenu()
       Update();
     });
   }
+  menu->addAction(tr("Edit..."), [this, bp_address, is_memory_breakpoint] {
+    OnEditBreakpoint(bp_address, !is_memory_breakpoint);
+  });
 
   menu->exec(QCursor::pos());
 }
 
 void BreakpointWidget::AddBP(u32 addr)
 {
-  AddBP(addr, false, true, true);
+  AddBP(addr, false, true, true, {});
 }
 
-void BreakpointWidget::AddBP(u32 addr, bool temp, bool break_on_hit, bool log_on_hit)
+void BreakpointWidget::AddBP(u32 addr, bool temp, bool break_on_hit, bool log_on_hit,
+                             const QString& condition)
 {
-  PowerPC::breakpoints.Add(addr, temp, break_on_hit, log_on_hit);
+  PowerPC::breakpoints.Add(
+      addr, temp, break_on_hit, log_on_hit,
+      !condition.isEmpty() ? Expression::TryParse(condition.toUtf8().constData()) : std::nullopt);
 
   emit BreakpointsChanged();
   Update();

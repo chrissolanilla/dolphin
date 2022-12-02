@@ -1,6 +1,8 @@
 // Copyright 2017 Dolphin Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include "Core/IOS/ES/ES.h"
+
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -10,14 +12,13 @@
 #include <vector>
 
 #include <fmt/format.h>
-#include <mbedtls/sha1.h>
 
 #include "Common/CommonTypes.h"
+#include "Common/Crypto/SHA1.h"
 #include "Common/Logging/Log.h"
 #include "Common/NandPaths.h"
 #include "Common/ScopeGuard.h"
 #include "Common/StringUtil.h"
-#include "Core/IOS/ES/ES.h"
 #include "Core/IOS/ES/Formats.h"
 #include "Core/IOS/FS/FileSystemProxy.h"
 #include "Core/IOS/Uids.h"
@@ -48,12 +49,24 @@ ES::TMDReader ESDevice::FindInstalledTMD(u64 title_id, Ticks ticks) const
   return FindTMD(*m_ios.GetFSDevice(), Common::GetTMDFileName(title_id), ticks);
 }
 
-ES::TicketReader ESDevice::FindSignedTicket(u64 title_id) const
+ES::TicketReader ESDevice::FindSignedTicket(u64 title_id, std::optional<u8> desired_version) const
 {
-  const std::string path = Common::GetTicketFileName(title_id);
-  const auto ticket_file = m_ios.GetFS()->OpenFile(PID_KERNEL, PID_KERNEL, path, FS::Mode::Read);
+  std::string path = desired_version == 1 ? Common::GetV1TicketFileName(title_id) :
+                                            Common::GetTicketFileName(title_id);
+  auto ticket_file = m_ios.GetFS()->OpenFile(PID_KERNEL, PID_KERNEL, path, FS::Mode::Read);
   if (!ticket_file)
-    return {};
+  {
+    if (desired_version)
+      // Desired ticket does not exist.
+      return {};
+
+    // Check if we are dealing with a v1 ticket
+    path = Common::GetV1TicketFileName(title_id);
+    ticket_file = m_ios.GetFS()->OpenFile(PID_KERNEL, PID_KERNEL, path, FS::Mode::Read);
+
+    if (!ticket_file)
+      return {};
+  }
 
   std::vector<u8> signed_ticket(ticket_file->GetStatus()->size);
   if (!ticket_file->Read(signed_ticket.data(), signed_ticket.size()))
@@ -150,7 +163,8 @@ std::vector<u64> ESDevice::GetTitlesWithTickets() const
       const std::string name_without_ext = file_name.substr(0, 8);
       if (fs->ReadDirectory(PID_KERNEL, PID_KERNEL,
                             fmt::format("/ticket/{}/{}", title_type, file_name)) ||
-          !IsValidPartOfTitleID(name_without_ext) || name_without_ext + ".tik" != file_name)
+          !IsValidPartOfTitleID(name_without_ext) || name_without_ext + ".tik" != file_name ||
+          name_without_ext + ".tv1" != file_name)
       {
         continue;
       }
@@ -196,9 +210,7 @@ ESDevice::GetStoredContentsFromTMD(const ES::TMDReader& tmd,
                  std::vector<u8> content_data(file->GetStatus()->size);
                  if (!file->Read(content_data.data(), content_data.size()))
                    return false;
-                 std::array<u8, 20> sha1{};
-                 mbedtls_sha1_ret(content_data.data(), content_data.size(), sha1.data());
-                 return sha1 == content.sha1;
+                 return Common::SHA1::CalculateDigest(content_data) == content.sha1;
                });
 
   return stored_contents;
@@ -401,7 +413,8 @@ s32 ESDevice::WriteSystemFile(const std::string& path, const std::vector<u8>& da
                               {FS::Mode::ReadWrite, FS::Mode::ReadWrite, FS::Mode::None}, ticks);
   if (result != FS::ResultCode::Success)
   {
-    ERROR_LOG_FMT(IOS_ES, "Failed to create temporary file {}: {}", tmp_path, result);
+    ERROR_LOG_FMT(IOS_ES, "Failed to create temporary file {}: {}", tmp_path,
+                  static_cast<int>(result));
     return FS::ConvertResult(result);
   }
 
@@ -427,7 +440,8 @@ s32 ESDevice::WriteSystemFile(const std::string& path, const std::vector<u8>& da
   result = fs.RenameFile(PID_KERNEL, PID_KERNEL, tmp_path, path, ticks);
   if (result != FS::ResultCode::Success)
   {
-    ERROR_LOG_FMT(IOS_ES, "Failed to move launch file to final destination ({}): {}", path, result);
+    ERROR_LOG_FMT(IOS_ES, "Failed to move launch file to final destination ({}): {}", path,
+                  static_cast<int>(result));
     return FS::ConvertResult(result);
   }
 

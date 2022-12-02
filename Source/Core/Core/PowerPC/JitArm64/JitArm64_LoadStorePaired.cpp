@@ -1,6 +1,8 @@
 // Copyright 2015 Dolphin Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include "Core/PowerPC/JitArm64/Jit.h"
+
 #include "Common/Arm64Emitter.h"
 #include "Common/BitSet.h"
 #include "Common/CommonTypes.h"
@@ -9,7 +11,6 @@
 #include "Core/Core.h"
 #include "Core/CoreTiming.h"
 #include "Core/PowerPC/Gekko.h"
-#include "Core/PowerPC/JitArm64/Jit.h"
 #include "Core/PowerPC/JitArm64/JitArm64_RegCache.h"
 #include "Core/PowerPC/PPCTables.h"
 #include "Core/PowerPC/PowerPC.h"
@@ -42,6 +43,10 @@ void JitArm64::psq_lXX(UGeckoInstruction inst)
   {
     gpr.Lock(ARM64Reg::W1, ARM64Reg::W2, ARM64Reg::W3);
     fpr.Lock(ARM64Reg::Q1);
+  }
+  else if (!jo.fastmem_arena)
+  {
+    gpr.Lock(ARM64Reg::W2);
   }
 
   constexpr ARM64Reg addr_reg = ARM64Reg::W0;
@@ -81,6 +86,8 @@ void JitArm64::psq_lXX(UGeckoInstruction inst)
     // Wipe the registers we are using as temporaries
     if (!update || early_update)
       gprs_in_use[DecodeReg(ARM64Reg::W0)] = false;
+    if (!jo.fastmem_arena)
+      gprs_in_use[DecodeReg(ARM64Reg::W2)] = false;
     fprs_in_use[DecodeReg(ARM64Reg::Q0)] = false;
     if (!jo.memcheck)
       fprs_in_use[DecodeReg(VS)] = 0;
@@ -89,7 +96,7 @@ void JitArm64::psq_lXX(UGeckoInstruction inst)
     if (!w)
       flags |= BackPatchInfo::FLAG_PAIR;
 
-    EmitBackpatchRoutine(flags, jo.fastmem, jo.fastmem, VS, EncodeRegTo64(addr_reg), gprs_in_use,
+    EmitBackpatchRoutine(flags, MemAccessMode::Auto, VS, EncodeRegTo64(addr_reg), gprs_in_use,
                          fprs_in_use);
   }
   else
@@ -102,7 +109,7 @@ void JitArm64::psq_lXX(UGeckoInstruction inst)
     LDR(EncodeRegTo64(type_reg), ARM64Reg::X30, ArithOption(EncodeRegTo64(type_reg), true));
     BLR(EncodeRegTo64(type_reg));
 
-    WriteConditionalExceptionExit(EXCEPTION_DSI, ARM64Reg::X30, ARM64Reg::Q1);
+    WriteConditionalExceptionExit(EXCEPTION_DSI, ARM64Reg::W30, ARM64Reg::Q1);
 
     m_float_emit.ORR(EncodeRegToDouble(VS), ARM64Reg::D0, ARM64Reg::D0);
   }
@@ -129,6 +136,10 @@ void JitArm64::psq_lXX(UGeckoInstruction inst)
     gpr.Unlock(ARM64Reg::W1, ARM64Reg::W2, ARM64Reg::W3);
     fpr.Unlock(ARM64Reg::Q1);
   }
+  else if (!jo.fastmem_arena)
+  {
+    gpr.Unlock(ARM64Reg::W2);
+  }
 }
 
 void JitArm64::psq_stXX(UGeckoInstruction inst)
@@ -150,8 +161,9 @@ void JitArm64::psq_stXX(UGeckoInstruction inst)
   const int i = indexed ? inst.Ix : inst.I;
   const int w = indexed ? inst.Wx : inst.W;
 
+  fpr.Lock(ARM64Reg::Q0);
   if (!js.assumeNoPairedQuantize)
-    fpr.Lock(ARM64Reg::Q0, ARM64Reg::Q1);
+    fpr.Lock(ARM64Reg::Q1);
 
   const bool have_single = fpr.IsSingle(inst.RS);
 
@@ -187,8 +199,10 @@ void JitArm64::psq_stXX(UGeckoInstruction inst)
   }
 
   gpr.Lock(ARM64Reg::W0, ARM64Reg::W1, ARM64Reg::W30);
-  if (!js.assumeNoPairedQuantize)
+  if (!js.assumeNoPairedQuantize || !jo.fastmem_arena)
     gpr.Lock(ARM64Reg::W2);
+  if (!js.assumeNoPairedQuantize && !jo.fastmem_arena)
+    gpr.Lock(ARM64Reg::W3);
 
   constexpr ARM64Reg scale_reg = ARM64Reg::W0;
   constexpr ARM64Reg addr_reg = ARM64Reg::W1;
@@ -227,12 +241,14 @@ void JitArm64::psq_stXX(UGeckoInstruction inst)
     gprs_in_use[DecodeReg(ARM64Reg::W0)] = false;
     if (!update || early_update)
       gprs_in_use[DecodeReg(ARM64Reg::W1)] = false;
+    if (!jo.fastmem_arena)
+      gprs_in_use[DecodeReg(ARM64Reg::W2)] = false;
 
     u32 flags = BackPatchInfo::FLAG_STORE | BackPatchInfo::FLAG_FLOAT | BackPatchInfo::FLAG_SIZE_32;
     if (!w)
       flags |= BackPatchInfo::FLAG_PAIR;
 
-    EmitBackpatchRoutine(flags, jo.fastmem, jo.fastmem, VS, EncodeRegTo64(addr_reg), gprs_in_use,
+    EmitBackpatchRoutine(flags, MemAccessMode::Auto, VS, EncodeRegTo64(addr_reg), gprs_in_use,
                          fprs_in_use);
   }
   else
@@ -245,7 +261,7 @@ void JitArm64::psq_stXX(UGeckoInstruction inst)
     LDR(EncodeRegTo64(type_reg), ARM64Reg::X30, ArithOption(EncodeRegTo64(type_reg), true));
     BLR(EncodeRegTo64(type_reg));
 
-    WriteConditionalExceptionExit(EXCEPTION_DSI, ARM64Reg::X30, ARM64Reg::Q1);
+    WriteConditionalExceptionExit(EXCEPTION_DSI, ARM64Reg::W30, ARM64Reg::Q1);
   }
 
   if (update && !early_update)
@@ -258,9 +274,11 @@ void JitArm64::psq_stXX(UGeckoInstruction inst)
     fpr.Unlock(VS);
 
   gpr.Unlock(ARM64Reg::W0, ARM64Reg::W1, ARM64Reg::W30);
-  if (!js.assumeNoPairedQuantize)
-  {
+  fpr.Unlock(ARM64Reg::Q0);
+  if (!js.assumeNoPairedQuantize || !jo.fastmem_arena)
     gpr.Unlock(ARM64Reg::W2);
-    fpr.Unlock(ARM64Reg::Q0, ARM64Reg::Q1);
-  }
+  if (!js.assumeNoPairedQuantize && !jo.fastmem_arena)
+    gpr.Unlock(ARM64Reg::W3);
+  if (!js.assumeNoPairedQuantize)
+    fpr.Unlock(ARM64Reg::Q1);
 }

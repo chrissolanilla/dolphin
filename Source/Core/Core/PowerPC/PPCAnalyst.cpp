@@ -15,6 +15,7 @@
 #include "Common/CommonTypes.h"
 #include "Common/Logging/Log.h"
 #include "Common/StringUtil.h"
+#include "Core/Config/MainSettings.h"
 #include "Core/ConfigManager.h"
 #include "Core/PowerPC/JitCommon/JitBase.h"
 #include "Core/PowerPC/MMU.h"
@@ -191,7 +192,7 @@ static void AnalyzeFunction2(Common::Symbol* func)
   func->flags = flags;
 }
 
-static bool CanSwapAdjacentOps(const CodeOp& a, const CodeOp& b)
+bool PPCAnalyzer::CanSwapAdjacentOps(const CodeOp& a, const CodeOp& b) const
 {
   const GekkoOPInfo* a_info = a.opinfo;
   const GekkoOPInfo* b_info = b.opinfo;
@@ -199,9 +200,18 @@ static bool CanSwapAdjacentOps(const CodeOp& a, const CodeOp& b)
   u64 b_flags = b_info->flags;
 
   // can't reorder around breakpoints
-  if (SConfig::GetInstance().bEnableDebugging &&
-      (PowerPC::breakpoints.IsAddressBreakPoint(a.address) ||
-       PowerPC::breakpoints.IsAddressBreakPoint(b.address)))
+  if (m_is_debugging_enabled && (PowerPC::breakpoints.IsAddressBreakPoint(a.address) ||
+                                 PowerPC::breakpoints.IsAddressBreakPoint(b.address)))
+  {
+    return false;
+  }
+  // Any instruction which can raise an interrupt is *not* a possible swap candidate:
+  // see [1] for an example of a crash caused by this error.
+  //
+  // [1] https://bugs.dolphin-emu.org/issues/5864#note-7
+  if (a.canCauseException || b.canCauseException)
+    return false;
+  if (a_flags & FL_ENDBLOCK)
     return false;
   if (b_flags & (FL_SET_CRx | FL_ENDBLOCK | FL_TIMER | FL_EVIL | FL_SET_OE))
     return false;
@@ -221,16 +231,8 @@ static bool CanSwapAdjacentOps(const CodeOp& a, const CodeOp& b)
     return false;
   }
 
-  // For now, only integer ops acceptable. Any instruction which can raise an
-  // interrupt is *not* a possible swap candidate: see [1] for an example of
-  // a crash caused by this error.
-  //
-  // [1] https://bugs.dolphin-emu.org/issues/5864#note-7
+  // For now, only integer ops are acceptable.
   if (b_info->type != OpType::Integer)
-    return false;
-
-  // And it's possible a might raise an interrupt too (fcmpo/fcmpu)
-  if (a_info->type != OpType::Integer)
     return false;
 
   // Check that we have no register collisions.
@@ -365,6 +367,7 @@ void FindFunctions(u32 startAddr, u32 endAddr, PPCSymbolDB* func_db)
 
   // Step 2:
   func_db->FillInCallers();
+  func_db->Index();
 
   int numLeafs = 0, numNice = 0, numUnNice = 0;
   int numTimer = 0, numRFI = 0, numStraightLeaf = 0;
@@ -449,7 +452,7 @@ static bool isCror(const CodeOp& a)
 }
 
 void PPCAnalyzer::ReorderInstructionsCore(u32 instructions, CodeOp* code, bool reverse,
-                                          ReorderType type)
+                                          ReorderType type) const
 {
   // Bubbling an instruction sometimes reveals another opportunity to bubble an instruction, so do
   // multiple passes.
@@ -500,7 +503,7 @@ void PPCAnalyzer::ReorderInstructionsCore(u32 instructions, CodeOp* code, bool r
   }
 }
 
-void PPCAnalyzer::ReorderInstructions(u32 instructions, CodeOp* code)
+void PPCAnalyzer::ReorderInstructions(u32 instructions, CodeOp* code) const
 {
   // Reorder cror instructions upwards (e.g. towards an fcmp). Technically we should be more
   // picky about this, but cror seems to almost solely be used for this purpose in real code.
@@ -518,8 +521,8 @@ void PPCAnalyzer::ReorderInstructions(u32 instructions, CodeOp* code)
     ReorderInstructionsCore(instructions, code, false, ReorderType::CMP);
 }
 
-void PPCAnalyzer::SetInstructionStats(CodeBlock* block, CodeOp* code, const GekkoOPInfo* opinfo,
-                                      u32 index)
+void PPCAnalyzer::SetInstructionStats(CodeBlock* block, CodeOp* code,
+                                      const GekkoOPInfo* opinfo) const
 {
   code->wantsCR0 = false;
   code->wantsCR1 = false;
@@ -530,9 +533,6 @@ void PPCAnalyzer::SetInstructionStats(CodeBlock* block, CodeOp* code, const Gekk
     first_fpu_instruction = !block->m_fpa->any;
     block->m_fpa->any = true;
   }
-
-  if (opinfo->flags & FL_TIMER)
-    block->m_gpa->anyTimer = true;
 
   // Does the instruction output CR0?
   if (opinfo->flags & FL_RC_BIT)
@@ -554,10 +554,10 @@ void PPCAnalyzer::SetInstructionStats(CodeBlock* block, CodeOp* code, const Gekk
   code->outputFPRF = (opinfo->flags & FL_SET_FPRF) != 0;
   code->canEndBlock = (opinfo->flags & FL_ENDBLOCK) != 0;
 
-  code->canCauseException =
-      first_fpu_instruction || (opinfo->flags & (FL_LOADSTORE | FL_PROGRAMEXCEPTION)) != 0 ||
-      (SConfig::GetInstance().bFloatExceptions && (opinfo->flags & FL_FLOAT_EXCEPTION)) ||
-      (SConfig::GetInstance().bDivideByZeroExceptions && (opinfo->flags & FL_FLOAT_DIV));
+  code->canCauseException = first_fpu_instruction ||
+                            (opinfo->flags & (FL_LOADSTORE | FL_PROGRAMEXCEPTION)) != 0 ||
+                            (m_enable_float_exceptions && (opinfo->flags & FL_FLOAT_EXCEPTION)) ||
+                            (m_enable_div_by_zero_exceptions && (opinfo->flags & FL_FLOAT_DIV));
 
   code->wantsCA = (opinfo->flags & FL_READ_CA) != 0;
   code->outputCA = (opinfo->flags & FL_SET_CA) != 0;
@@ -583,39 +583,32 @@ void PPCAnalyzer::SetInstructionStats(CodeBlock* block, CodeOp* code, const Gekk
   if (opinfo->flags & FL_OUT_A)
   {
     code->regsOut[code->inst.RA] = true;
-    block->m_gpa->SetOutputRegister(code->inst.RA, index);
   }
   if (opinfo->flags & FL_OUT_D)
   {
     code->regsOut[code->inst.RD] = true;
-    block->m_gpa->SetOutputRegister(code->inst.RD, index);
   }
   if ((opinfo->flags & FL_IN_A) || ((opinfo->flags & FL_IN_A0) && code->inst.RA != 0))
   {
     code->regsIn[code->inst.RA] = true;
-    block->m_gpa->SetInputRegister(code->inst.RA, index);
   }
   if (opinfo->flags & FL_IN_B)
   {
     code->regsIn[code->inst.RB] = true;
-    block->m_gpa->SetInputRegister(code->inst.RB, index);
   }
   if (opinfo->flags & FL_IN_C)
   {
     code->regsIn[code->inst.RC] = true;
-    block->m_gpa->SetInputRegister(code->inst.RC, index);
   }
   if (opinfo->flags & FL_IN_S)
   {
     code->regsIn[code->inst.RS] = true;
-    block->m_gpa->SetInputRegister(code->inst.RS, index);
   }
   if (code->inst.OPCD == 46)  // lmw
   {
     for (int iReg = code->inst.RD; iReg < 32; ++iReg)
     {
       code->regsOut[iReg] = true;
-      block->m_gpa->SetOutputRegister(iReg, index);
     }
   }
   else if (code->inst.OPCD == 47)  // stmw
@@ -623,7 +616,6 @@ void PPCAnalyzer::SetInstructionStats(CodeBlock* block, CodeOp* code, const Gekk
     for (int iReg = code->inst.RS; iReg < 32; ++iReg)
     {
       code->regsIn[iReg] = true;
-      block->m_gpa->SetInputRegister(iReg, index);
     }
   }
 
@@ -642,13 +634,6 @@ void PPCAnalyzer::SetInstructionStats(CodeBlock* block, CodeOp* code, const Gekk
     code->fregsIn[code->inst.FD] = true;
   if (opinfo->flags & FL_IN_FLOAT_S)
     code->fregsIn[code->inst.FS] = true;
-
-  // For analysis purposes, we can assume that blr eats opinfo->flags.
-  if (opinfo->type == OpType::Branch && code->inst.hex == 0x4e800020)
-  {
-    code->outputCR0 = true;
-    code->outputCR1 = true;
-  }
 
   code->branchUsesCtr = false;
   code->branchTo = UINT32_MAX;
@@ -682,7 +667,7 @@ void PPCAnalyzer::SetInstructionStats(CodeBlock* block, CodeOp* code, const Gekk
   }
 }
 
-bool PPCAnalyzer::IsBusyWaitLoop(CodeBlock* block, CodeOp* code, size_t instructions)
+bool PPCAnalyzer::IsBusyWaitLoop(CodeBlock* block, CodeOp* code, size_t instructions) const
 {
   // Very basic algorithm to detect busy wait loops:
   //   * It loops to itself and does not contain any other branches.
@@ -735,7 +720,8 @@ bool PPCAnalyzer::IsBusyWaitLoop(CodeBlock* block, CodeOp* code, size_t instruct
   return false;
 }
 
-u32 PPCAnalyzer::Analyze(u32 address, CodeBlock* block, CodeBuffer* buffer, std::size_t block_size)
+u32 PPCAnalyzer::Analyze(u32 address, CodeBlock* block, CodeBuffer* buffer,
+                         std::size_t block_size) const
 {
   // Clear block stats
   *block->m_stats = {};
@@ -743,9 +729,6 @@ u32 PPCAnalyzer::Analyze(u32 address, CodeBlock* block, CodeBuffer* buffer, std:
   // Clear register stats
   block->m_gpa->any = true;
   block->m_fpa->any = false;
-
-  block->m_gpa->Clear();
-  block->m_fpa->Clear();
 
   // Set the blocks start address
   block->m_address = address;
@@ -765,7 +748,7 @@ u32 PPCAnalyzer::Analyze(u32 address, CodeBlock* block, CodeBuffer* buffer, std:
   u32 numFollows = 0;
   u32 num_inst = 0;
 
-  const bool enable_follow = SConfig::GetInstance().bJITFollowBranch;
+  const bool enable_follow = m_enable_branch_following;
 
   for (std::size_t i = 0; i < block_size; ++i)
   {
@@ -789,7 +772,7 @@ u32 PPCAnalyzer::Analyze(u32 address, CodeBlock* block, CodeBuffer* buffer, std:
     block->m_stats->numCycles += opinfo->numCycles;
     block->m_physical_addresses.insert(result.physical_address);
 
-    SetInstructionStats(block, &code[i], opinfo, static_cast<u32>(i));
+    SetInstructionStats(block, &code[i], opinfo);
 
     bool follow = false;
 
@@ -950,8 +933,8 @@ u32 PPCAnalyzer::Analyze(u32 address, CodeBlock* block, CodeBuffer* buffer, std:
     op.gprDiscardable = gprDiscardable;
     op.fprDiscardable = fprDiscardable;
     op.fprInXmm = fprInXmm;
-    gprInUse |= op.regsIn;
-    fprInUse |= op.fregsIn;
+    gprInUse |= op.regsIn | op.regsOut;
+    fprInUse |= op.fregsIn | op.GetFregsOut();
     if (op.canEndBlock || op.canCauseException)
     {
       gprDiscardable = BitSet32{};

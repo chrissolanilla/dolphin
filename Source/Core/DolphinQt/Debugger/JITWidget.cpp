@@ -9,8 +9,9 @@
 #include <QTextBrowser>
 #include <QVBoxLayout>
 
+#include <fmt/format.h>
+
 #include "Common/GekkoDisassembler.h"
-#include "Common/StringUtil.h"
 #include "Core/PowerPC/PPCAnalyst.h"
 #include "UICommon/Disassembler.h"
 
@@ -156,6 +157,10 @@ void JITWidget::Update()
   PPCAnalyst::BlockRegStats fpa;
   PPCAnalyst::CodeBlock code_block;
   PPCAnalyst::PPCAnalyzer analyzer;
+  analyzer.SetDebuggingEnabled(Config::Get(Config::MAIN_ENABLE_DEBUGGING));
+  analyzer.SetBranchFollowingEnabled(Config::Get(Config::MAIN_JIT_FOLLOW_BRANCH));
+  analyzer.SetFloatExceptionsEnabled(Config::Get(Config::MAIN_FLOAT_EXCEPTIONS));
+  analyzer.SetDivByZeroExceptionsEnabled(Config::Get(Config::MAIN_DIVIDE_BY_ZERO_EXCEPTIONS));
   analyzer.SetOption(PPCAnalyst::PPCAnalyzer::OPTION_CONDITIONAL_CONTINUE);
   analyzer.SetOption(PPCAnalyst::PPCAnalyzer::OPTION_BRANCH_FOLLOW);
 
@@ -176,12 +181,6 @@ void JITWidget::Update()
 
     // Add stats to the end of the ppc box since it's generally the shortest.
     ppc_disasm << std::dec << std::endl;
-
-    // Add some generic analysis
-    if (st.isFirstBlockOfFunction)
-      ppc_disasm << "(first block of function)" << std::endl;
-    if (st.isLastBlockOfFunction)
-      ppc_disasm << "(last block of function)" << std::endl;
 
     ppc_disasm << st.numCycles << " estimated cycles" << std::endl;
 
@@ -210,7 +209,7 @@ void JITWidget::Update()
   {
     m_host_asm_widget->setHtml(
         QStringLiteral("<pre>%1</pre>")
-            .arg(QString::fromStdString(StringFromFormat("(non-code address: %08x)", m_address))));
+            .arg(QString::fromStdString(fmt::format("(non-code address: {:08x})", m_address))));
     m_ppc_asm_widget->setHtml(QStringLiteral("<i>---</i>"));
   }
 }

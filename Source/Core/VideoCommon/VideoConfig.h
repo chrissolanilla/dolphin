@@ -9,17 +9,13 @@
 
 #pragma once
 
+#include <optional>
 #include <string>
 #include <vector>
 
 #include "Common/CommonTypes.h"
+#include "VideoCommon/GraphicsModSystem/Config/GraphicsModGroup.h"
 #include "VideoCommon/VideoCommon.h"
-
-// Log in two categories, and save three other options in the same byte
-#define CONF_LOG 1
-#define CONF_PRIMLOG 2
-#define CONF_SAVETARGETS 8
-#define CONF_SAVESHADERS 16
 
 constexpr int EFB_SCALE_AUTO_INTEGRAL = 0;
 
@@ -47,6 +43,13 @@ enum class ShaderCompilationMode : int
   SynchronousUberShaders,
   AsynchronousUberShaders,
   AsynchronousSkipRendering
+};
+
+enum class TriState : int
+{
+  Off,
+  On,
+  Auto
 };
 
 // NEVER inherit from this class.
@@ -79,10 +82,15 @@ struct VideoConfig final
 
   // Information
   bool bShowFPS = false;
+  bool bShowVPS = false;
+  bool bShowSpeed = false;
+  bool bShowSpeedColors = false;
+  int iPerfSampleUSec = 0;
   bool bShowNetPlayPing = false;
   bool bShowNetPlayMessages = false;
   bool bOverlayStats = false;
   bool bOverlayProjStats = false;
+  bool bOverlayScissorStats = false;
   bool bTexFmtOverlayEnable = false;
   bool bTexFmtOverlayCenter = false;
   bool bLogRenderTimeToFile = false;
@@ -102,13 +110,17 @@ struct VideoConfig final
   bool bDumpFramesAsImages = false;
   bool bUseFFV1 = false;
   std::string sDumpCodec;
+  std::string sDumpPixelFormat;
   std::string sDumpEncoder;
   std::string sDumpFormat;
   std::string sDumpPath;
   bool bInternalResolutionFrameDumps = false;
   bool bBorderlessFullscreen = false;
   bool bEnableGPUTextureDecoding = false;
+  bool bPreferVSForLinePointExpansion = false;
   int iBitrateKbps = 0;
+  bool bGraphicMods = false;
+  std::optional<GraphicsModGroupConfig> graphics_mod_config;
 
   // Hacks
   bool bEFBAccessEnable = false;
@@ -132,10 +144,12 @@ struct VideoConfig final
   bool bFastDepthCalc = false;
   bool bVertexRounding = false;
   int iEFBAccessTileSize = 0;
-  int iLog = 0;           // CONF_ bits
   int iSaveTargetId = 0;  // TODO: Should be dropped
   u32 iMissingColorValue = 0;
   bool bFastTextureSampling = false;
+#ifdef __APPLE__
+  bool bNoMipmapping = false;  // Used by macOS fifoci to work around an M1 bug
+#endif
 
   // Stereoscopy
   StereoMode stereo_mode{};
@@ -149,24 +163,15 @@ struct VideoConfig final
   // D3D only config, mostly to be merged into the above
   int iAdapter = 0;
 
-  // VideoSW Debugging
-  int drawStart = 0;
-  int drawEnd = 0;
-  bool bZComploc = false;
-  bool bZFreeze = false;
-  bool bDumpObjects = false;
-  bool bDumpTevStages = false;
-  bool bDumpTevTextureFetches = false;
+  // Metal only config
+  TriState iManuallyUploadBuffers = TriState::Auto;
+  bool bUsePresentDrawable = false;
 
   // Enable API validation layers, currently only supported with Vulkan.
   bool bEnableValidationLayer = false;
 
   // Multithreaded submission, currently only supported with Vulkan.
-#if defined(ANDROID)
-  bool bBackendMultithreading = false;
-#else
   bool bBackendMultithreading = true;
-#endif
 
   // Early command buffer execution interval in number of draws.
   // Currently only supported with Vulkan.
@@ -187,6 +192,7 @@ struct VideoConfig final
   struct
   {
     APIType api_type = APIType::Nothing;
+    std::string DisplayName;
 
     std::vector<std::string> Adapters;  // for D3D
     std::vector<u32> AAModes;
@@ -200,7 +206,6 @@ struct VideoConfig final
     bool bSupportsExclusiveFullscreen = false;
     bool bSupportsDualSourceBlend = false;
     bool bSupportsPrimitiveRestart = false;
-    bool bSupportsOversizedViewports = false;
     bool bSupportsGeometryShaders = false;
     bool bSupportsComputeShaders = false;
     bool bSupports3DVision = false;
@@ -233,9 +238,22 @@ struct VideoConfig final
     bool bSupportsPipelineCacheData = false;
     bool bSupportsCoarseDerivatives = false;
     bool bSupportsTextureQueryLevels = false;
+    bool bSupportsLodBiasInSampler = false;
+    bool bSupportsSettingObjectNames = false;
+    bool bSupportsPartialMultisampleResolve = false;
+    bool bSupportsDynamicVertexLoader = false;
+    bool bSupportsVSLinePointExpand = false;
   } backend_info;
 
   // Utility
+  bool UseVSForLinePointExpand() const
+  {
+    if (!backend_info.bSupportsVSLinePointExpand)
+      return false;
+    if (!backend_info.bSupportsGeometryShaders)
+      return true;
+    return bPreferVSForLinePointExpansion;
+  }
   bool MultisamplingEnabled() const { return iMultisamples > 1; }
   bool ExclusiveFullscreenEnabled() const
   {

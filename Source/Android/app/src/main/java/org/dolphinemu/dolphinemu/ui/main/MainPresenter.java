@@ -3,30 +3,38 @@
 package org.dolphinemu.dolphinemu.ui.main;
 
 import android.content.ContentResolver;
-import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 
-import androidx.appcompat.app.AlertDialog;
-import androidx.core.app.ComponentActivity;
+import androidx.activity.ComponentActivity;
+import androidx.fragment.app.FragmentActivity;
 import androidx.lifecycle.Observer;
+import androidx.lifecycle.ViewModelProvider;
+
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import org.dolphinemu.dolphinemu.BuildConfig;
 import org.dolphinemu.dolphinemu.R;
+import org.dolphinemu.dolphinemu.activities.EmulationActivity;
 import org.dolphinemu.dolphinemu.features.settings.model.BooleanSetting;
 import org.dolphinemu.dolphinemu.features.settings.ui.MenuTag;
+import org.dolphinemu.dolphinemu.features.sysupdate.ui.SystemUpdateProgressBarDialogFragment;
+import org.dolphinemu.dolphinemu.features.sysupdate.ui.SystemMenuNotInstalledDialogFragment;
+import org.dolphinemu.dolphinemu.features.sysupdate.ui.SystemUpdateViewModel;
 import org.dolphinemu.dolphinemu.model.GameFileCache;
 import org.dolphinemu.dolphinemu.services.GameFileCacheManager;
 import org.dolphinemu.dolphinemu.utils.AfterDirectoryInitializationRunner;
 import org.dolphinemu.dolphinemu.utils.BooleanSupplier;
 import org.dolphinemu.dolphinemu.utils.CompletableFuture;
 import org.dolphinemu.dolphinemu.utils.ContentHandler;
+import org.dolphinemu.dolphinemu.utils.DirectoryInitialization;
 import org.dolphinemu.dolphinemu.utils.FileBrowserHelper;
+import org.dolphinemu.dolphinemu.utils.PermissionsHandler;
+import org.dolphinemu.dolphinemu.utils.ThreadUtil;
 import org.dolphinemu.dolphinemu.utils.WiiUtils;
 
 import java.util.Arrays;
 import java.util.concurrent.ExecutionException;
-import java.util.function.Supplier;
 
 public final class MainPresenter
 {
@@ -40,10 +48,10 @@ public final class MainPresenter
   private static boolean sShouldRescanLibrary = true;
 
   private final MainView mView;
-  private final ComponentActivity mActivity;
+  private final FragmentActivity mActivity;
   private String mDirToAdd;
 
-  public MainPresenter(MainView view, ComponentActivity activity)
+  public MainPresenter(MainView view, FragmentActivity activity)
   {
     mView = view;
     mActivity = activity;
@@ -51,6 +59,10 @@ public final class MainPresenter
 
   public void onCreate()
   {
+    // Ask the user to grant write permission if relevant and not already granted
+    if (DirectoryInitialization.isWaitingForWriteAccess(mActivity))
+      PermissionsHandler.requestWritePermission(mActivity);
+
     String versionName = BuildConfig.VERSION_NAME;
     mView.setVersionString(versionName);
 
@@ -70,7 +82,8 @@ public final class MainPresenter
 
   public void onFabClick()
   {
-    mView.launchFileListActivity();
+    new AfterDirectoryInitializationRunner().runWithLifecycle(mActivity,
+            mView::launchFileListActivity);
   }
 
   public boolean handleOptionSelection(int itemId, ComponentActivity activity)
@@ -83,29 +96,39 @@ public final class MainPresenter
 
       case R.id.menu_refresh:
         mView.setRefreshing(true);
-        GameFileCacheManager.startRescan(activity);
+        GameFileCacheManager.startRescan();
         return true;
 
       case R.id.button_add_directory:
-        mView.launchFileListActivity();
+        new AfterDirectoryInitializationRunner().runWithLifecycle(activity,
+                mView::launchFileListActivity);
         return true;
 
       case R.id.menu_open_file:
         mView.launchOpenFileActivity(REQUEST_GAME_FILE);
         return true;
 
+      case R.id.menu_load_wii_system_menu:
+        launchWiiSystemMenu();
+        return true;
+
+      case R.id.menu_online_system_update:
+        new AfterDirectoryInitializationRunner().runWithLifecycle(activity,
+                this::launchOnlineUpdate);
+        return true;
+
       case R.id.menu_install_wad:
-        new AfterDirectoryInitializationRunner().runWithLifecycle(activity, true,
+        new AfterDirectoryInitializationRunner().runWithLifecycle(activity,
                 () -> mView.launchOpenFileActivity(REQUEST_WAD_FILE));
         return true;
 
       case R.id.menu_import_wii_save:
-        new AfterDirectoryInitializationRunner().runWithLifecycle(activity, true,
+        new AfterDirectoryInitializationRunner().runWithLifecycle(activity,
                 () -> mView.launchOpenFileActivity(REQUEST_WII_SAVE_FILE));
         return true;
 
       case R.id.menu_import_nand_backup:
-        new AfterDirectoryInitializationRunner().runWithLifecycle(activity, true,
+        new AfterDirectoryInitializationRunner().runWithLifecycle(activity,
                 () -> mView.launchOpenFileActivity(REQUEST_NAND_BIN_FILE));
         return true;
     }
@@ -123,7 +146,7 @@ public final class MainPresenter
 
     if (sShouldRescanLibrary)
     {
-      GameFileCacheManager.startRescan(mActivity);
+      GameFileCacheManager.startRescan();
     }
 
     sShouldRescanLibrary = true;
@@ -149,11 +172,12 @@ public final class MainPresenter
     if (Arrays.stream(childNames).noneMatch((name) -> FileBrowserHelper.GAME_EXTENSIONS.contains(
             FileBrowserHelper.getExtension(name, false))))
     {
-      AlertDialog.Builder builder = new AlertDialog.Builder(mActivity, R.style.DolphinDialogBase);
-      builder.setMessage(mActivity.getString(R.string.wrong_file_extension_in_directory,
-              FileBrowserHelper.setToSortedDelimitedString(FileBrowserHelper.GAME_EXTENSIONS)));
-      builder.setPositiveButton(R.string.ok, null);
-      builder.show();
+      new MaterialAlertDialogBuilder(mActivity)
+              .setMessage(mActivity.getString(R.string.wrong_file_extension_in_directory,
+                      FileBrowserHelper.setToSortedDelimitedString(
+                              FileBrowserHelper.GAME_EXTENSIONS)))
+              .setPositiveButton(R.string.ok, null)
+              .show();
     }
 
     ContentResolver contentResolver = mActivity.getContentResolver();
@@ -169,7 +193,7 @@ public final class MainPresenter
 
   public void installWAD(String path)
   {
-    runOnThreadAndShowResult(R.string.import_in_progress, 0, () ->
+    ThreadUtil.runOnThreadAndShowResult(mActivity, R.string.import_in_progress, 0, () ->
     {
       boolean success = WiiUtils.installWAD(path);
       int message = success ? R.string.wad_install_success : R.string.wad_install_failure;
@@ -181,19 +205,18 @@ public final class MainPresenter
   {
     CompletableFuture<Boolean> canOverwriteFuture = new CompletableFuture<>();
 
-    runOnThreadAndShowResult(R.string.import_in_progress, 0, () ->
+    ThreadUtil.runOnThreadAndShowResult(mActivity, R.string.import_in_progress, 0, () ->
     {
       BooleanSupplier canOverwrite = () ->
       {
         mActivity.runOnUiThread(() ->
         {
-          AlertDialog.Builder builder =
-                  new AlertDialog.Builder(mActivity, R.style.DolphinDialogBase);
-          builder.setMessage(R.string.wii_save_exists);
-          builder.setCancelable(false);
-          builder.setPositiveButton(R.string.yes, (dialog, i) -> canOverwriteFuture.complete(true));
-          builder.setNegativeButton(R.string.no, (dialog, i) -> canOverwriteFuture.complete(false));
-          builder.show();
+          new MaterialAlertDialogBuilder(mActivity)
+                  .setMessage(R.string.wii_save_exists)
+                  .setCancelable(false)
+                  .setPositiveButton(R.string.yes, (dialog, i) -> canOverwriteFuture.complete(true))
+                  .setNegativeButton(R.string.no, (dialog, i) -> canOverwriteFuture.complete(false))
+                  .show();
         });
 
         try
@@ -233,58 +256,81 @@ public final class MainPresenter
 
   public void importNANDBin(String path)
   {
-    AlertDialog.Builder builder =
-            new AlertDialog.Builder(mActivity, R.style.DolphinDialogBase);
+    new MaterialAlertDialogBuilder(mActivity)
+            .setMessage(R.string.nand_import_warning)
+            .setNegativeButton(R.string.no, (dialog, i) -> dialog.dismiss())
+            .setPositiveButton(R.string.yes, (dialog, i) ->
+            {
+              dialog.dismiss();
 
-    builder.setMessage(R.string.nand_import_warning);
-    builder.setNegativeButton(R.string.no, (dialog, i) -> dialog.dismiss());
-    builder.setPositiveButton(R.string.yes, (dialog, i) ->
-    {
-      dialog.dismiss();
-
-      runOnThreadAndShowResult(R.string.import_in_progress, R.string.do_not_close_app, () ->
-      {
-        // ImportNANDBin doesn't provide any result value, unfortunately...
-        // It does however show a panic alert if something goes wrong.
-        WiiUtils.importNANDBin(path);
-        return null;
-      });
-    });
-
-    builder.show();
-  }
-
-  private void runOnThreadAndShowResult(int progressTitle, int progressMessage, Supplier<String> f)
-  {
-    AlertDialog progressDialog = new AlertDialog.Builder(mActivity, R.style.DolphinDialogBase)
-            .create();
-    progressDialog.setTitle(progressTitle);
-    if (progressMessage != 0)
-      progressDialog.setMessage(mActivity.getResources().getString(progressMessage));
-    progressDialog.setCancelable(false);
-    progressDialog.show();
-
-    new Thread(() ->
-    {
-      String result = f.get();
-      mActivity.runOnUiThread(() ->
-      {
-        progressDialog.dismiss();
-
-        if (result != null)
-        {
-          AlertDialog.Builder builder =
-                  new AlertDialog.Builder(mActivity, R.style.DolphinDialogBase);
-          builder.setMessage(result);
-          builder.setPositiveButton(R.string.ok, (dialog, i) -> dialog.dismiss());
-          builder.show();
-        }
-      });
-    }, mActivity.getResources().getString(progressTitle)).start();
+              ThreadUtil.runOnThreadAndShowResult(mActivity, R.string.import_in_progress,
+                      R.string.do_not_close_app, () ->
+                      {
+                        // ImportNANDBin unfortunately doesn't provide any result value...
+                        // It does however show a panic alert if something goes wrong.
+                        WiiUtils.importNANDBin(path);
+                        return null;
+                      });
+            })
+            .show();
   }
 
   public static void skipRescanningLibrary()
   {
     sShouldRescanLibrary = false;
+  }
+
+  private void launchOnlineUpdate()
+  {
+    if (WiiUtils.isSystemMenuInstalled())
+    {
+      SystemUpdateViewModel viewModel =
+              new ViewModelProvider(mActivity).get(SystemUpdateViewModel.class);
+      viewModel.setRegion(-1);
+      launchUpdateProgressBarFragment(mActivity);
+    }
+    else
+    {
+      SystemMenuNotInstalledDialogFragment dialogFragment =
+              new SystemMenuNotInstalledDialogFragment();
+      dialogFragment
+              .show(mActivity.getSupportFragmentManager(), "SystemMenuNotInstalledDialogFragment");
+    }
+  }
+
+  public static void launchDiscUpdate(String path, FragmentActivity activity)
+  {
+    SystemUpdateViewModel viewModel =
+            new ViewModelProvider(activity).get(SystemUpdateViewModel.class);
+    viewModel.setDiscPath(path);
+    launchUpdateProgressBarFragment(activity);
+  }
+
+  private static void launchUpdateProgressBarFragment(FragmentActivity activity)
+  {
+    SystemUpdateProgressBarDialogFragment progressBarFragment =
+            new SystemUpdateProgressBarDialogFragment();
+    progressBarFragment
+            .show(activity.getSupportFragmentManager(), "SystemUpdateProgressBarDialogFragment");
+    progressBarFragment.setCancelable(false);
+  }
+
+  private void launchWiiSystemMenu()
+  {
+    new AfterDirectoryInitializationRunner().runWithLifecycle(mActivity, () ->
+    {
+      if (WiiUtils.isSystemMenuInstalled())
+      {
+        EmulationActivity.launchSystemMenu(mActivity);
+      }
+      else
+      {
+        SystemMenuNotInstalledDialogFragment dialogFragment =
+                new SystemMenuNotInstalledDialogFragment();
+        dialogFragment
+                .show(mActivity.getSupportFragmentManager(),
+                        "SystemMenuNotInstalledDialogFragment");
+      }
+    });
   }
 }

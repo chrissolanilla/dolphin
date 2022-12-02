@@ -63,6 +63,8 @@ public final class SettingsActivityPresenter
 
   private void loadSettingsUI()
   {
+    mView.hideLoading();
+
     if (mSettings.isEmpty())
     {
       if (!TextUtils.isEmpty(mGameId))
@@ -86,18 +88,9 @@ public final class SettingsActivityPresenter
 
   private void prepareDolphinDirectoriesIfNeeded()
   {
-    if (DirectoryInitialization.areDolphinDirectoriesReady())
-    {
-      loadSettingsUI();
-    }
-    else
-    {
-      mView.showLoading();
+    mView.showLoading();
 
-      new AfterDirectoryInitializationRunner()
-              .setFinishedCallback(mView::hideLoading)
-              .runWithLifecycle(mActivity, true, this::loadSettingsUI);
-    }
+    new AfterDirectoryInitializationRunner().runWithLifecycle(mActivity, this::loadSettingsUI);
   }
 
   public Settings getSettings()
@@ -120,17 +113,6 @@ public final class SettingsActivityPresenter
     }
   }
 
-  public boolean handleOptionsItem(int itemId)
-  {
-    if (itemId == R.id.menu_save_exit)
-    {
-      mView.finish();
-      return true;
-    }
-
-    return false;
-  }
-
   public void onSettingChanged()
   {
     mShouldSave = true;
@@ -146,12 +128,22 @@ public final class SettingsActivityPresenter
     return mShouldSave;
   }
 
+  public void onSerialPort1SettingChanged(MenuTag key, int value)
+  {
+    if (value != 0 && value != 255) // Not disabled or dummy
+    {
+      Bundle bundle = new Bundle();
+      bundle.putInt(SettingsFragmentPresenter.ARG_SERIALPORT1_TYPE, value);
+      mView.showSettingsFragment(key, bundle, true, mGameId);
+    }
+  }
+
   public void onGcPadSettingChanged(MenuTag key, int value)
   {
     if (value != 0) // Not disabled
     {
       Bundle bundle = new Bundle();
-      bundle.putInt(SettingsFragmentPresenter.ARG_CONTROLLER_TYPE, value / 6);
+      bundle.putInt(SettingsFragmentPresenter.ARG_CONTROLLER_TYPE, value);
       mView.showSettingsFragment(key, bundle, true, mGameId);
     }
   }

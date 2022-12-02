@@ -7,24 +7,31 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuInflater;
-import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 
+import androidx.annotation.ColorInt;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.slidingpanelayout.widget.SlidingPaneLayout;
 
+import com.google.android.material.color.MaterialColors;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+
 import org.dolphinemu.dolphinemu.R;
+import org.dolphinemu.dolphinemu.databinding.ActivityCheatsBinding;
 import org.dolphinemu.dolphinemu.features.cheats.model.Cheat;
 import org.dolphinemu.dolphinemu.features.cheats.model.CheatsViewModel;
 import org.dolphinemu.dolphinemu.features.cheats.model.GeckoCheat;
 import org.dolphinemu.dolphinemu.features.settings.model.Settings;
 import org.dolphinemu.dolphinemu.ui.TwoPaneOnBackPressedCallback;
 import org.dolphinemu.dolphinemu.ui.main.MainPresenter;
+import org.dolphinemu.dolphinemu.utils.InsetsHelper;
+import org.dolphinemu.dolphinemu.utils.ThemeHelper;
 
 public class CheatsActivity extends AppCompatActivity
         implements SlidingPaneLayout.PanelSlideListener
@@ -40,12 +47,10 @@ public class CheatsActivity extends AppCompatActivity
   private boolean mIsWii;
   private CheatsViewModel mViewModel;
 
-  private SlidingPaneLayout mSlidingPaneLayout;
-  private View mCheatList;
-  private View mCheatDetails;
-
   private View mCheatListLastFocus;
   private View mCheatDetailsLastFocus;
+
+  private ActivityCheatsBinding mBinding;
 
   public static void launch(Context context, String gameId, String gameTdbId, int revision,
           boolean isWii)
@@ -61,6 +66,8 @@ public class CheatsActivity extends AppCompatActivity
   @Override
   protected void onCreate(Bundle savedInstanceState)
   {
+    ThemeHelper.setTheme(this);
+
     super.onCreate(savedInstanceState);
 
     MainPresenter.skipRescanningLibrary();
@@ -76,24 +83,35 @@ public class CheatsActivity extends AppCompatActivity
     mViewModel = new ViewModelProvider(this).get(CheatsViewModel.class);
     mViewModel.load(mGameId, mRevision);
 
-    setContentView(R.layout.activity_cheats);
+    mBinding = ActivityCheatsBinding.inflate(getLayoutInflater());
+    setContentView(mBinding.getRoot());
 
-    mSlidingPaneLayout = findViewById(R.id.sliding_pane_layout);
-    mCheatList = findViewById(R.id.cheat_list);
-    mCheatDetails = findViewById(R.id.cheat_details);
+    WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
 
-    mCheatListLastFocus = mCheatList;
-    mCheatDetailsLastFocus = mCheatDetails;
+    mCheatListLastFocus = mBinding.cheatList;
+    mCheatDetailsLastFocus = mBinding.cheatDetails;
 
-    mSlidingPaneLayout.addPanelSlideListener(this);
+    mBinding.slidingPaneLayout.addPanelSlideListener(this);
 
     getOnBackPressedDispatcher().addCallback(this,
-            new TwoPaneOnBackPressedCallback(mSlidingPaneLayout));
+            new TwoPaneOnBackPressedCallback(mBinding.slidingPaneLayout));
 
     mViewModel.getSelectedCheat().observe(this, this::onSelectedCheatChanged);
     onSelectedCheatChanged(mViewModel.getSelectedCheat().getValue());
 
     mViewModel.getOpenDetailsViewEvent().observe(this, this::openDetailsView);
+
+    setSupportActionBar(mBinding.toolbarCheats);
+    getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+
+    InsetsHelper.setUpCheatsLayout(this, mBinding.appbarCheats, mBinding.slidingPaneLayout,
+            mBinding.cheatDetails,
+            mBinding.workaroundView);
+
+    @ColorInt int color =
+            MaterialColors.getColor(mBinding.toolbarCheats, R.attr.colorSurfaceVariant);
+    mBinding.toolbarCheats.setBackgroundColor(color);
+    ThemeHelper.setStatusBarColor(this, color);
   }
 
   @Override
@@ -103,18 +121,6 @@ public class CheatsActivity extends AppCompatActivity
     inflater.inflate(R.menu.menu_settings, menu);
 
     return true;
-  }
-
-  @Override
-  public boolean onOptionsItemSelected(MenuItem item)
-  {
-    if (item.getItemId() == R.id.menu_save_exit)
-    {
-      finish();
-      return true;
-    }
-
-    return false;
   }
 
   @Override
@@ -148,10 +154,10 @@ public class CheatsActivity extends AppCompatActivity
   {
     boolean cheatSelected = selectedCheat != null;
 
-    if (!cheatSelected && mSlidingPaneLayout.isOpen())
-      mSlidingPaneLayout.close();
+    if (!cheatSelected && mBinding.slidingPaneLayout.isOpen())
+      mBinding.slidingPaneLayout.close();
 
-    mSlidingPaneLayout.setLockMode(cheatSelected ?
+    mBinding.slidingPaneLayout.setLockMode(cheatSelected ?
             SlidingPaneLayout.LOCK_MODE_UNLOCKED : SlidingPaneLayout.LOCK_MODE_LOCKED_CLOSED);
   }
 
@@ -159,11 +165,11 @@ public class CheatsActivity extends AppCompatActivity
   {
     if (hasFocus)
     {
-      mCheatListLastFocus = mCheatList.findFocus();
+      mCheatListLastFocus = mBinding.cheatList.findFocus();
       if (mCheatListLastFocus == null)
         throw new NullPointerException();
 
-      mSlidingPaneLayout.close();
+      mBinding.slidingPaneLayout.close();
     }
   }
 
@@ -171,18 +177,25 @@ public class CheatsActivity extends AppCompatActivity
   {
     if (hasFocus)
     {
-      mCheatDetailsLastFocus = mCheatDetails.findFocus();
+      mCheatDetailsLastFocus = mBinding.cheatDetails.findFocus();
       if (mCheatDetailsLastFocus == null)
         throw new NullPointerException();
 
-      mSlidingPaneLayout.open();
+      mBinding.slidingPaneLayout.open();
     }
+  }
+
+  @Override
+  public boolean onSupportNavigateUp()
+  {
+    onBackPressed();
+    return true;
   }
 
   private void openDetailsView(boolean open)
   {
     if (open)
-      mSlidingPaneLayout.open();
+      mBinding.slidingPaneLayout.open();
   }
 
   public Settings loadGameSpecificSettings()
@@ -194,10 +207,10 @@ public class CheatsActivity extends AppCompatActivity
 
   public void downloadGeckoCodes()
   {
-    AlertDialog progressDialog = new AlertDialog.Builder(this, R.style.DolphinDialogBase).create();
-    progressDialog.setTitle(R.string.cheats_downloading);
-    progressDialog.setCancelable(false);
-    progressDialog.show();
+    AlertDialog progressDialog = new MaterialAlertDialogBuilder(this)
+            .setMessage(R.string.cheats_downloading)
+            .setCancelable(false)
+            .show();
 
     new Thread(() ->
     {
@@ -209,14 +222,14 @@ public class CheatsActivity extends AppCompatActivity
 
         if (codes == null)
         {
-          new AlertDialog.Builder(this, R.style.DolphinDialogBase)
+          new MaterialAlertDialogBuilder(this)
                   .setMessage(getString(R.string.cheats_download_failed))
                   .setPositiveButton(R.string.ok, null)
                   .show();
         }
         else if (codes.length == 0)
         {
-          new AlertDialog.Builder(this, R.style.DolphinDialogBase)
+          new MaterialAlertDialogBuilder(this)
                   .setMessage(getString(R.string.cheats_download_empty))
                   .setPositiveButton(R.string.ok, null)
                   .show();
@@ -226,7 +239,7 @@ public class CheatsActivity extends AppCompatActivity
           int cheatsAdded = mViewModel.addDownloadedGeckoCodes(codes);
           String message = getString(R.string.cheats_download_succeeded, codes.length, cheatsAdded);
 
-          new AlertDialog.Builder(this, R.style.DolphinDialogBase)
+          new MaterialAlertDialogBuilder(this)
                   .setMessage(message)
                   .setPositiveButton(R.string.ok, null)
                   .show();

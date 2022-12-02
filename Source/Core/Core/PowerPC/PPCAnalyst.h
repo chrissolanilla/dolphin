@@ -81,56 +81,12 @@ struct CodeOp  // 16B
 
 struct BlockStats
 {
-  bool isFirstBlockOfFunction;
-  bool isLastBlockOfFunction;
   int numCycles;
 };
 
 struct BlockRegStats
 {
-  short firstRead[32];
-  short firstWrite[32];
-  short lastRead[32];
-  short lastWrite[32];
-  short numReads[32];
-  short numWrites[32];
-
   bool any;
-  bool anyTimer;
-
-  int GetTotalNumAccesses(int reg) const { return numReads[reg] + numWrites[reg]; }
-  int GetUseRange(int reg) const
-  {
-    return std::max(lastRead[reg], lastWrite[reg]) - std::min(firstRead[reg], firstWrite[reg]);
-  }
-
-  bool IsUsed(int reg) const { return (numReads[reg] + numWrites[reg]) > 0; }
-  void SetInputRegister(int reg, short opindex)
-  {
-    if (firstRead[reg] == -1)
-      firstRead[reg] = opindex;
-    lastRead[reg] = opindex;
-    numReads[reg]++;
-  }
-
-  void SetOutputRegister(int reg, short opindex)
-  {
-    if (firstWrite[reg] == -1)
-      firstWrite[reg] = opindex;
-    lastWrite[reg] = opindex;
-    numWrites[reg]++;
-  }
-
-  void Clear()
-  {
-    for (int i = 0; i < 32; ++i)
-    {
-      firstRead[i] = -1;
-      firstWrite[i] = -1;
-      numReads[i] = 0;
-      numWrites[i] = 0;
-    }
-  }
 };
 
 using CodeBuffer = std::vector<CodeOp>;
@@ -215,7 +171,11 @@ public:
   void SetOption(AnalystOption option) { m_options |= option; }
   void ClearOption(AnalystOption option) { m_options &= ~(option); }
   bool HasOption(AnalystOption option) const { return !!(m_options & option); }
-  u32 Analyze(u32 address, CodeBlock* block, CodeBuffer* buffer, std::size_t block_size);
+  void SetDebuggingEnabled(bool enabled) { m_is_debugging_enabled = enabled; }
+  void SetBranchFollowingEnabled(bool enabled) { m_enable_branch_following = enabled; }
+  void SetFloatExceptionsEnabled(bool enabled) { m_enable_float_exceptions = enabled; }
+  void SetDivByZeroExceptionsEnabled(bool enabled) { m_enable_div_by_zero_exceptions = enabled; }
+  u32 Analyze(u32 address, CodeBlock* block, CodeBuffer* buffer, std::size_t block_size) const;
 
 private:
   enum class ReorderType
@@ -225,13 +185,20 @@ private:
     CROR
   };
 
-  void ReorderInstructionsCore(u32 instructions, CodeOp* code, bool reverse, ReorderType type);
-  void ReorderInstructions(u32 instructions, CodeOp* code);
-  void SetInstructionStats(CodeBlock* block, CodeOp* code, const GekkoOPInfo* opinfo, u32 index);
-  bool IsBusyWaitLoop(CodeBlock* block, CodeOp* code, size_t instructions);
+  bool CanSwapAdjacentOps(const CodeOp& a, const CodeOp& b) const;
+  void ReorderInstructionsCore(u32 instructions, CodeOp* code, bool reverse,
+                               ReorderType type) const;
+  void ReorderInstructions(u32 instructions, CodeOp* code) const;
+  void SetInstructionStats(CodeBlock* block, CodeOp* code, const GekkoOPInfo* opinfo) const;
+  bool IsBusyWaitLoop(CodeBlock* block, CodeOp* code, size_t instructions) const;
 
   // Options
   u32 m_options = 0;
+
+  bool m_is_debugging_enabled = false;
+  bool m_enable_branch_following = false;
+  bool m_enable_float_exceptions = false;
+  bool m_enable_div_by_zero_exceptions = false;
 };
 
 void FindFunctions(u32 startAddr, u32 endAddr, PPCSymbolDB* func_db);

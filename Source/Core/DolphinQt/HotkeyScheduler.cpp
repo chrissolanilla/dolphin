@@ -7,6 +7,8 @@
 #include <cmath>
 #include <thread>
 
+#include <fmt/format.h>
+
 #include <QApplication>
 #include <QCoreApplication>
 
@@ -28,6 +30,7 @@
 #include "Core/IOS/USB/Bluetooth/BTBase.h"
 #include "Core/IOS/USB/Bluetooth/BTReal.h"
 #include "Core/State.h"
+#include "Core/System.h"
 #include "Core/WiiUtils.h"
 
 #ifdef HAS_LIBMGBA
@@ -48,8 +51,6 @@ constexpr const char* DUBOIS_ALGORITHM_SHADER = "dubois";
 
 HotkeyScheduler::HotkeyScheduler() : m_stop_requested(false)
 {
-  HotkeyManagerEmu::Initialize();
-  HotkeyManagerEmu::LoadConfig();
   HotkeyManagerEmu::Enable(true);
 }
 
@@ -235,6 +236,9 @@ void HotkeyScheduler::Run()
       if (IsHotkey(HK_UNLOCK_CURSOR))
         emit UnlockCursor();
 
+      if (IsHotkey(HK_CENTER_MOUSE, true))
+        g_controller_interface.SetMouseCenteringRequested(true);
+
       auto& settings = Settings::Instance();
 
       // Toggle Chat
@@ -254,7 +258,7 @@ void HotkeyScheduler::Run()
       if (auto bt = WiiUtils::GetBluetoothRealDevice())
         bt->UpdateSyncButtonState(IsHotkey(HK_TRIGGER_SYNC_BUTTON, true));
 
-      if (SConfig::GetInstance().bEnableDebugging)
+      if (Config::Get(Config::MAIN_ENABLE_DEBUGGING))
       {
         CheckDebuggingHotkeys();
       }
@@ -350,7 +354,7 @@ void HotkeyScheduler::Run()
 
       if (IsHotkey(HK_VOLUME_TOGGLE_MUTE))
       {
-        AudioCommon::ToggleMuteVolume();
+        AudioCommon::ToggleMuteVolume(Core::System::GetInstance());
         ShowVolume();
       }
 
@@ -366,7 +370,7 @@ void HotkeyScheduler::Run()
           OSD::AddMessage("Internal Resolution: Native");
           break;
         default:
-          OSD::AddMessage(StringFromFormat("Internal Resolution: %dx", g_Config.iEFBScale));
+          OSD::AddMessage(fmt::format("Internal Resolution: {}x", g_Config.iEFBScale));
           break;
         }
       };
@@ -414,20 +418,19 @@ void HotkeyScheduler::Run()
       {
         const bool new_value = !Config::Get(Config::GFX_HACK_EFB_ACCESS_ENABLE);
         Config::SetCurrent(Config::GFX_HACK_EFB_ACCESS_ENABLE, new_value);
-        OSD::AddMessage(
-            StringFromFormat("%s EFB Access from CPU", new_value ? "Skip" : "Don't skip"));
+        OSD::AddMessage(fmt::format("{} EFB Access from CPU", new_value ? "Skip" : "Don't skip"));
       }
 
       if (IsHotkey(HK_TOGGLE_EFBCOPIES))
       {
         const bool new_value = !Config::Get(Config::GFX_HACK_SKIP_EFB_COPY_TO_RAM);
         Config::SetCurrent(Config::GFX_HACK_SKIP_EFB_COPY_TO_RAM, new_value);
-        OSD::AddMessage(StringFromFormat("Copy EFB: %s", new_value ? "to Texture" : "to RAM"));
+        OSD::AddMessage(fmt::format("Copy EFB: {}", new_value ? "to Texture" : "to RAM"));
       }
 
       auto ShowXFBCopies = []() {
-        OSD::AddMessage(StringFromFormat(
-            "Copy XFB: %s%s", Config::Get(Config::GFX_HACK_IMMEDIATE_XFB) ? " (Immediate)" : "",
+        OSD::AddMessage(fmt::format(
+            "Copy XFB: {}{}", Config::Get(Config::GFX_HACK_IMMEDIATE_XFB) ? " (Immediate)" : "",
             Config::Get(Config::GFX_HACK_SKIP_XFB_COPY_TO_RAM) ? "to Texture" : "to RAM"));
       };
 
@@ -447,7 +450,7 @@ void HotkeyScheduler::Run()
       {
         const bool new_value = !Config::Get(Config::GFX_DISABLE_FOG);
         Config::SetCurrent(Config::GFX_DISABLE_FOG, new_value);
-        OSD::AddMessage(StringFromFormat("Fog: %s", new_value ? "Enabled" : "Disabled"));
+        OSD::AddMessage(fmt::format("Fog: {}", new_value ? "Enabled" : "Disabled"));
       }
 
       if (IsHotkey(HK_TOGGLE_DUMPTEXTURES))
@@ -459,26 +462,25 @@ void HotkeyScheduler::Run()
       Core::SetIsThrottlerTempDisabled(IsHotkey(HK_TOGGLE_THROTTLE, true));
 
       auto ShowEmulationSpeed = []() {
-        OSD::AddMessage(
-            SConfig::GetInstance().m_EmulationSpeed <= 0 ?
-                "Speed Limit: Unlimited" :
-                StringFromFormat("Speed Limit: %li%%",
-                                 std::lround(SConfig::GetInstance().m_EmulationSpeed * 100.f)));
+        const float emulation_speed = Config::Get(Config::MAIN_EMULATION_SPEED);
+        OSD::AddMessage(emulation_speed <= 0 ?
+                            "Speed Limit: Unlimited" :
+                            fmt::format("Speed Limit: {}%", std::lround(emulation_speed * 100.f)));
       };
 
       if (IsHotkey(HK_DECREASE_EMULATION_SPEED))
       {
-        auto speed = SConfig::GetInstance().m_EmulationSpeed - 0.1;
+        auto speed = Config::Get(Config::MAIN_EMULATION_SPEED) - 0.1;
         speed = (speed <= 0 || (speed >= 0.95 && speed <= 1.05)) ? 1.0 : speed;
-        SConfig::GetInstance().m_EmulationSpeed = speed;
+        Config::SetCurrent(Config::MAIN_EMULATION_SPEED, speed);
         ShowEmulationSpeed();
       }
 
       if (IsHotkey(HK_INCREASE_EMULATION_SPEED))
       {
-        auto speed = SConfig::GetInstance().m_EmulationSpeed + 0.1;
+        auto speed = Config::Get(Config::MAIN_EMULATION_SPEED) + 0.1;
         speed = (speed >= 0.95 && speed <= 1.05) ? 1.0 : speed;
-        SConfig::GetInstance().m_EmulationSpeed = speed;
+        Config::SetCurrent(Config::MAIN_EMULATION_SPEED, speed);
         ShowEmulationSpeed();
       }
 
@@ -488,6 +490,12 @@ void HotkeyScheduler::Run()
 
       if (IsHotkey(HK_LOAD_STATE_SLOT_SELECTED))
         emit StateLoadSlotHotkey();
+
+      if (IsHotkey(HK_INCREMENT_SELECTED_STATE_SLOT))
+        emit IncrementSelectedStateSlotHotkey();
+
+      if (IsHotkey(HK_DECREMENT_SELECTED_STATE_SLOT))
+        emit DecrementSelectedStateSlotHotkey();
 
       // Stereoscopy
       if (IsHotkey(HK_TOGGLE_STEREO_SBS))
@@ -562,7 +570,7 @@ void HotkeyScheduler::Run()
     {
       const bool new_value = !Config::Get(Config::FREE_LOOK_ENABLED);
       Config::SetCurrent(Config::FREE_LOOK_ENABLED, new_value);
-      OSD::AddMessage(StringFromFormat("Free Look: %s", new_value ? "Enabled" : "Disabled"));
+      OSD::AddMessage(fmt::format("Free Look: {}", new_value ? "Enabled" : "Disabled"));
     }
 
     // Savestates

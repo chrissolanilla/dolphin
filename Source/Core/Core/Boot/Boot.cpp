@@ -22,11 +22,11 @@ namespace fs = std::filesystem;
 
 #include "Common/Align.h"
 #include "Common/CDUtils.h"
-#include "Common/CRC32.h"
 #include "Common/CommonPaths.h"
 #include "Common/CommonTypes.h"
 #include "Common/Config/Config.h"
 #include "Common/FileUtil.h"
+#include "Common/Hash.h"
 #include "Common/IOFile.h"
 #include "Common/Logging/Log.h"
 #include "Common/MsgHandler.h"
@@ -50,6 +50,7 @@ namespace fs = std::filesystem;
 #include "Core/IOS/IOS.h"
 #include "Core/IOS/IOSC.h"
 #include "Core/IOS/Uids.h"
+#include "Core/NetPlayProto.h"
 #include "Core/PatchEngine.h"
 #include "Core/PowerPC/PPCAnalyst.h"
 #include "Core/PowerPC/PPCSymbolDB.h"
@@ -155,6 +156,11 @@ const std::vector<u64>& BootSessionData::GetWiiSyncTitles() const
   return m_wii_sync_titles;
 }
 
+const std::string& BootSessionData::GetWiiSyncRedirectFolder() const
+{
+  return m_wii_sync_redirect_folder;
+}
+
 void BootSessionData::InvokeWiiSyncCleanup() const
 {
   if (m_wii_sync_cleanup)
@@ -162,11 +168,23 @@ void BootSessionData::InvokeWiiSyncCleanup() const
 }
 
 void BootSessionData::SetWiiSyncData(std::unique_ptr<IOS::HLE::FS::FileSystem> fs,
-                                     std::vector<u64> titles, WiiSyncCleanupFunction cleanup)
+                                     std::vector<u64> titles, std::string redirect_folder,
+                                     WiiSyncCleanupFunction cleanup)
 {
   m_wii_sync_fs = std::move(fs);
   m_wii_sync_titles = std::move(titles);
+  m_wii_sync_redirect_folder = std::move(redirect_folder);
   m_wii_sync_cleanup = std::move(cleanup);
+}
+
+const NetPlay::NetSettings* BootSessionData::GetNetplaySettings() const
+{
+  return m_netplay_settings.get();
+}
+
+void BootSessionData::SetNetplaySettings(std::unique_ptr<NetPlay::NetSettings> netplay_settings)
+{
+  m_netplay_settings = std::move(netplay_settings);
 }
 
 BootParameters::BootParameters(Parameters&& parameters_, BootSessionData boot_session_data_)
@@ -198,7 +216,7 @@ std::unique_ptr<BootParameters> BootParameters::GenerateFromFile(std::vector<std
   std::string folder_path;
   std::string extension;
   SplitPath(paths.front(), &folder_path, nullptr, &extension);
-  std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
+  Common::ToLower(&extension);
 
   if (extension == ".m3u" || extension == ".m3u8")
   {
@@ -207,7 +225,7 @@ std::unique_ptr<BootParameters> BootParameters::GenerateFromFile(std::vector<std
       return {};
 
     SplitPath(paths.front(), nullptr, nullptr, &extension);
-    std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
+    Common::ToLower(&extension);
   }
 
   std::string path = paths.front();
@@ -219,12 +237,12 @@ std::unique_ptr<BootParameters> BootParameters::GenerateFromFile(std::vector<std
   {
     const std::string display_name = GetAndroidContentDisplayName(path);
     SplitPath(display_name, nullptr, nullptr, &extension);
-    std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
+    Common::ToLower(&extension);
   }
 #endif
 
   static const std::unordered_set<std::string> disc_image_extensions = {
-      {".gcm", ".iso", ".tgc", ".wbfs", ".ciso", ".gcz", ".wia", ".rvz", ".dol", ".elf"}};
+      {".gcm", ".iso", ".tgc", ".wbfs", ".ciso", ".gcz", ".wia", ".rvz", ".nfs", ".dol", ".elf"}};
   if (disc_image_extensions.find(extension) != disc_image_extensions.end() || is_drive)
   {
     std::unique_ptr<DiscIO::VolumeDisc> disc = DiscIO::CreateDisc(path);
@@ -304,8 +322,8 @@ std::unique_ptr<BootParameters> BootParameters::GenerateFromFile(std::vector<std
 
 BootParameters::IPL::IPL(DiscIO::Region region_) : region(region_)
 {
-  const std::string directory = SConfig::GetInstance().GetDirectoryForRegion(region);
-  path = SConfig::GetInstance().GetBootROMPath(directory);
+  const std::string directory = Config::GetDirectoryForRegion(region);
+  path = Config::GetBootROMPath(directory);
 }
 
 BootParameters::IPL::IPL(DiscIO::Region region_, Disc&& disc_) : IPL(region_)
@@ -355,24 +373,17 @@ void CBoot::UpdateDebugger_MapLoaded()
 bool CBoot::FindMapFile(std::string* existing_map_file, std::string* writable_map_file)
 {
   const std::string& game_id = SConfig::GetInstance().m_debugger_game_id;
+  std::string path = File::GetUserPath(D_MAPS_IDX) + game_id + ".map";
 
   if (writable_map_file)
-    *writable_map_file = File::GetUserPath(D_MAPS_IDX) + game_id + ".map";
+    *writable_map_file = path;
 
-  static const std::array<std::string, 2> maps_directories{
-      File::GetUserPath(D_MAPS_IDX),
-      File::GetSysDirectory() + MAPS_DIR DIR_SEP,
-  };
-  for (const auto& directory : maps_directories)
+  if (File::Exists(path))
   {
-    std::string path = directory + game_id + ".map";
-    if (File::Exists(path))
-    {
-      if (existing_map_file)
-        *existing_map_file = std::move(path);
+    if (existing_map_file)
+      *existing_map_file = std::move(path);
 
-      return true;
-    }
+    return true;
   }
 
   return false;
@@ -434,7 +445,7 @@ bool CBoot::Load_BS2(const std::string& boot_rom_filename)
   if (known_ipl && pal_ipl != (boot_region == DiscIO::Region::PAL))
   {
     PanicAlertFmtT("{0} IPL found in {1} directory. The disc might not be recognized",
-                   pal_ipl ? "PAL" : "NTSC", SConfig::GetDirectoryForRegion(boot_region));
+                   pal_ipl ? "PAL" : "NTSC", Config::GetDirectoryForRegion(boot_region));
   }
 
   // Run the descrambler over the encrypted section containing BS1/BS2
@@ -529,23 +540,15 @@ bool CBoot::BootUp(std::unique_ptr<BootParameters> boot)
       if (!executable.reader->IsValid())
         return false;
 
-      if (!executable.reader->LoadIntoMemory())
-      {
-        PanicAlertFmtT("Failed to load the executable to memory.");
-        return false;
-      }
-
       SetDefaultDisc();
 
       SetupMSR();
+      SetupHID(config.bWii);
       SetupBAT(config.bWii);
       CopyDefaultExceptionHandlers();
 
       if (config.bWii)
       {
-        PowerPC::ppcState.spr[SPR_HID0] = 0x0011c464;
-        PowerPC::ppcState.spr[SPR_HID4] = 0x82000000;
-
         // Set a value for the SP. It doesn't matter where this points to,
         // as long as it is a valid location. This value is taken from a homebrew binary.
         PowerPC::ppcState.gpr[1] = 0x8004d4bc;
@@ -558,6 +561,12 @@ bool CBoot::BootUp(std::unique_ptr<BootParameters> boot)
       else
       {
         SetupGCMemory();
+      }
+
+      if (!executable.reader->LoadIntoMemory())
+      {
+        PanicAlertFmtT("Failed to load the executable to memory.");
+        return false;
       }
 
       SConfig::OnNewTitleLoad();
@@ -643,7 +652,7 @@ BootExecutableReader::BootExecutableReader(const std::string& file_name)
 
 BootExecutableReader::BootExecutableReader(File::IOFile file)
 {
-  file.Seek(0, SEEK_SET);
+  file.Seek(0, File::SeekOrigin::Begin);
   m_bytes.resize(file.GetSize());
   file.ReadBytes(m_bytes.data(), m_bytes.size());
 }
@@ -702,8 +711,13 @@ void AddRiivolutionPatches(BootParameters* boot_params,
   auto& disc = std::get<BootParameters::Disc>(boot_params->parameters);
   disc.volume = DiscIO::CreateDisc(DiscIO::DirectoryBlobReader::Create(
       std::move(disc.volume),
+      [&](std::vector<DiscIO::FSTBuilderNode>* fst) {
+        DiscIO::Riivolution::ApplyPatchesToFiles(
+            riivolution_patches, DiscIO::Riivolution::PatchIndex::DolphinSysFiles, fst, nullptr);
+      },
       [&](std::vector<DiscIO::FSTBuilderNode>* fst, DiscIO::FSTBuilderNode* dol_node) {
-        DiscIO::Riivolution::ApplyPatchesToFiles(riivolution_patches, fst, dol_node);
+        DiscIO::Riivolution::ApplyPatchesToFiles(
+            riivolution_patches, DiscIO::Riivolution::PatchIndex::FileSystem, fst, dol_node);
       }));
   boot_params->riivolution_patches = std::move(riivolution_patches);
 }

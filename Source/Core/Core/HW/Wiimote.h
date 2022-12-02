@@ -28,6 +28,7 @@ enum class TurntableGroup;
 enum class UDrawTabletGroup;
 enum class DrawsomeTabletGroup;
 enum class TaTaConGroup;
+enum class ShinkansenGroup;
 }  // namespace WiimoteEmu
 
 enum
@@ -53,9 +54,6 @@ enum class WiimoteSource
 namespace WiimoteCommon
 {
 class HIDWiimote;
-
-WiimoteSource GetSource(unsigned int index);
-void SetSource(unsigned int index, WiimoteSource source);
 
 // Used to reconnect WiimoteDevice instance to HID source.
 // Must be run from CPU thread.
@@ -95,8 +93,7 @@ ControllerEmu::ControlGroup* GetUDrawTabletGroup(int number, WiimoteEmu::UDrawTa
 ControllerEmu::ControlGroup* GetDrawsomeTabletGroup(int number,
                                                     WiimoteEmu::DrawsomeTabletGroup group);
 ControllerEmu::ControlGroup* GetTaTaConGroup(int number, WiimoteEmu::TaTaConGroup group);
-
-bool NetPlay_GetButtonPress(int wiimote, bool pressed);
+ControllerEmu::ControlGroup* GetShinkansenGroup(int number, WiimoteEmu::ShinkansenGroup group);
 }  // namespace Wiimote
 
 namespace WiimoteReal
@@ -107,7 +104,5 @@ void Shutdown();
 void Resume();
 void Pause();
 void Refresh();
-
-void LoadSettings();
 
 }  // namespace WiimoteReal

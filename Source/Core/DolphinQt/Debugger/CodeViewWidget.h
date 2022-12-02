@@ -8,6 +8,7 @@
 #include <QTableWidget>
 
 #include "Common/CommonTypes.h"
+#include "Common/Debug/CodeTrace.h"
 
 class QKeyEvent;
 class QMouseEvent;
@@ -68,9 +69,12 @@ private:
 
   void OnContextMenu();
 
+  void AutoStep(CodeTrace::AutoStop option = CodeTrace::AutoStop::Always);
   void OnFollowBranch();
   void OnCopyAddress();
+  void OnCopyTargetAddress();
   void OnShowInMemory();
+  void OnShowTargetInMemory();
   void OnCopyFunction();
   void OnCopyCode();
   void OnCopyHex();
