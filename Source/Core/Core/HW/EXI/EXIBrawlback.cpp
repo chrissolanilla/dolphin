@@ -1350,11 +1350,13 @@ void CEXIBrawlback::handleEndOfReplay()
   }
 }
 
-void CEXIBrawlback::handleGetStartReplay(int index)
+void CEXIBrawlback::handleGetStartReplay(u8* payload)
 {
+  std::memcpy(&this->curIndex, payload, sizeof(u8));
+  this->curIndex = swap_endian(this->curIndex);
   StartReplay startReplay;
-  auto indexReplay = this->getReplayJsonAtIndex(index);
-  auto name = this->getReplayNameAtIndex(index);
+  auto indexReplay = this->getReplayJsonAtIndex(this->curIndex);
+  auto name = this->getReplayNameAtIndex(this->curIndex);
   if (indexReplay == json({}) || name == std::string())
   {
     SendCmdToGame(CMD_BAD_INDEX);
@@ -1459,12 +1461,6 @@ void CEXIBrawlback::handleNumReplays()
                           SConfig::GetInstance().m_details_game_id;
   auto numReplays = getNumReplays(replayDirectory);
   SendCmdToGame(CMD_GET_NUM_REPLAYS, &numReplays);
-}
-
-void CEXIBrawlback::handleSetReplayIndex(u8* payload)
-{
-  std::memcpy(&this->curIndex, payload, sizeof(int));
-  this->curIndex = swap_endian(this->curIndex);
 }
 
 json CEXIBrawlback::getReplayJsonAtIndex(int index)
@@ -1586,11 +1582,8 @@ void CEXIBrawlback::DMAWrite(u32 address, u32 size)
   case CMD_GET_NUM_REPLAYS:
     handleNumReplays();
 	break;
-  case CMD_SET_CUR_INDEX:
-    handleSetReplayIndex(payload);
-    break;
   case CMD_GET_START_REPLAY:
-    handleGetStartReplay(this->curIndex);
+    handleGetStartReplay(payload);
 	break;
   case CMD_GET_NEXT_FRAME:
     handleGetNextFrame(payload, this->curIndex);

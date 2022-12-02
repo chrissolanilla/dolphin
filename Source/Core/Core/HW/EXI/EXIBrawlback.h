@@ -42,8 +42,7 @@ private:
   void handleEndOfReplay();
   void handleGetNextFrame(u8* payload, int index);
   void handleNumReplays();
-  void handleSetReplayIndex(u8* payload);
-  void handleGetStartReplay(int index);
+  void handleGetStartReplay(u8* payload);
 
 
   template <typename T>
