@@ -1,7 +1,7 @@
 [submodule "Externals/Qt"]
 	path = Externals/Qt
 	url = https://github.com/dolphin-emu/ext-win-qt.git
-	branch = 5ab31b5fdf1cdc59b9e8c82a0f7c12d5fe878cd8
+	branch = master
 	shallow = true
 [submodule "Externals/mGBA/mgba"]
 	path = Externals/mGBA/mgba
@@ -45,3 +45,7 @@
 	url = https://github.com/mozilla/cubeb.git
 	branch = master
 	shallow = true
+[submodule "Source/Core/Core/Brawlback/include"]
+	path = Source/Core/Core/Brawlback/include
+	url = https://github.com/Brawlback-Team/brawlback-common
+	branch = master

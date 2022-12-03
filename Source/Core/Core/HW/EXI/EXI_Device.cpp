@@ -155,7 +155,7 @@ std::unique_ptr<IEXIDevice> EXIDevice_Create(const EXIDeviceType device_type, co
   case EXIDeviceType::AGP:
     result = std::make_unique<CEXIAgp>(slot);
     break;
-  case EXIDEVICE_BRAWLBACK:
+  case EXIDeviceType::Brawlback:
     result = std::make_unique<CEXIBrawlback>();
     break;
 
