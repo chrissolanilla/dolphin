@@ -45,7 +45,6 @@
 	url = https://github.com/mozilla/cubeb.git
 	branch = master
 	shallow = true
-[submodule "Source/Core/Core/Brawlback/include"]
-	path = Source/Core/Core/Brawlback/include
-	url = https://github.com/Brawlback-Team/brawlback-common
-	branch = master
+[submodule "Source/Core/Core/Brawlback/include/brawlback-common"]
+	path = Source/Core/Core/Brawlback/include/brawlback-common
+	url = https://github.com/Brawlback-Team/brawlback-common/
