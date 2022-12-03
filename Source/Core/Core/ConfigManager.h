@@ -34,6 +34,20 @@ struct BootParameters;
 
 struct SConfig
 {
+  // Settings
+  bool bAutomaticStart = false;
+  bool bBootToPause = false;
+
+  bool bJITNoBlockCache = false;
+  bool bJITNoBlockLinking = false;
+
+  bool bCopyWiiSaveNetplay = true;
+
+  bool bWii = false;
+  bool m_is_mios = false;
+
+  DiscIO::Region m_region;
+
   // Slippi
   bool m_brawlbackSaveReplays = true;
   std::string m_brawlbackReplayDir;
@@ -49,20 +63,6 @@ struct SConfig
   bool m_coutEnabled = false;
   int m_delayFrames = 2;
   std::string m_details_game_id = "";
-
-  // Settings
-  bool bAutomaticStart = false;
-  bool bBootToPause = false;
-
-  bool bJITNoBlockCache = false;
-  bool bJITNoBlockLinking = false;
-
-  bool bCopyWiiSaveNetplay = true;
-
-  bool bWii = false;
-  bool m_is_mios = false;
-
-  DiscIO::Region m_region;
 
   // files
   std::string m_strBootROM;

@@ -13,13 +13,12 @@
 #include "DolphinQt/Settings.h"
 #include "DolphinQt/Settings/AdvancedPane.h"
 #include "DolphinQt/Settings/AudioPane.h"
-#include "DolphinQt/Settings/BrawlbackPane.h"
 #include "DolphinQt/Settings/GameCubePane.h"
 #include "DolphinQt/Settings/GeneralPane.h"
 #include "DolphinQt/Settings/InterfacePane.h"
 #include "DolphinQt/Settings/PathPane.h"
 #include "DolphinQt/Settings/WiiPane.h"
-
+#include "DolphinQt/Settings/BrawlbackPane.h"
 #include "Core/Core.h"
 
 SettingsWindow::SettingsWindow(QWidget* parent) : QDialog(parent)
@@ -38,10 +37,10 @@ SettingsWindow::SettingsWindow(QWidget* parent) : QDialog(parent)
   m_tab_widget->addTab(GetWrappedWidget(new GeneralPane, this, 125, 100), tr("General"));
   m_tab_widget->addTab(GetWrappedWidget(new InterfacePane, this, 125, 100), tr("Interface"));
   m_tab_widget->addTab(GetWrappedWidget(new AudioPane, this, 125, 100), tr("Audio"));
-  m_tab_widget->addTab(GetWrappedWidget(new BrawlbackPane, this, 125, 100), tr("Brawlback"));
   m_tab_widget->addTab(GetWrappedWidget(new PathPane, this, 125, 100), tr("Paths"));
   m_tab_widget->addTab(GetWrappedWidget(new GameCubePane, this, 125, 100), tr("GameCube"));
   m_tab_widget->addTab(GetWrappedWidget(new WiiPane, this, 125, 100), tr("Wii"));
+  m_tab_widget->addTab(GetWrappedWidget(new BrawlbackPane, this, 125, 100), tr("Brawlback"));
   m_tab_widget->addTab(GetWrappedWidget(new AdvancedPane, this, 125, 200), tr("Advanced"));
 
   // Dialog box buttons

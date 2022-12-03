@@ -28,7 +28,6 @@ signals:
   void StopPressed();
   void FullScreenPressed();
   void ScreenShotPressed();
-  void NetplayPressed();
 
   void SettingsPressed();
   void ControllersPressed();
@@ -40,6 +39,8 @@ signals:
   void SkipPressed();
   void ShowPCPressed();
   void SetPCPressed();
+
+  void NetplayPressed();
 
 private:
   void OnEmulationStateChanged(Core::State state);
@@ -55,11 +56,11 @@ private:
   QAction* m_stop_action;
   QAction* m_fullscreen_action;
   QAction* m_screenshot_action;
-  QAction* m_netplay_action;
   QAction* m_config_action;
   QAction* m_controllers_action;
   QAction* m_graphics_action;
 
+  QAction* m_netplay_action;
   QAction* m_step_action;
   QAction* m_step_over_action;
   QAction* m_step_out_action;

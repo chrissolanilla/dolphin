@@ -13,6 +13,8 @@ add_library(core
   Boot/ElfReader.cpp
   Boot/ElfReader.h
   Boot/ElfTypes.h
+  BootManager.cpp
+  BootManager.h
   Brawlback/include/json.hpp
   Brawlback/Netplay/Matchmaking.cpp
   Brawlback/Netplay/Matchmaking.h
@@ -27,8 +29,6 @@ add_library(core
   Brawlback/SlippiUtility.h
   Brawlback/TimeSync.cpp
   Brawlback/TimeSync.h
-  BootManager.cpp
-  BootManager.h
   CheatCodes.h
   CheatGeneration.cpp
   CheatGeneration.h
@@ -212,8 +212,6 @@ add_library(core
   HW/EXI/EXI_DeviceMemoryCard.h
   HW/EXI/EXI_DeviceMic.cpp
   HW/EXI/EXI_DeviceMic.h
-  HW/EXI/EXIBrawlback.cpp
-  HW/EXI/EXIBrawlback.h
   HW/EXI/EXI.cpp
   HW/EXI/EXI.h
   HW/GBAPad.cpp

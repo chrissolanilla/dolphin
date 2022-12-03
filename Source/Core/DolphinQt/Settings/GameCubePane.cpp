@@ -44,11 +44,20 @@
 
 namespace
 {
-  //For brawlback branch we do not need to modify the setting for exi device [1], which was slot B
-  //in the menu. So the control to update this setting is removed entirely.
-  //Now we have a different # of slot controls to actual exi devides, so use this to map to exi settings index
+  // For brawlback branch we do not need to modify the setting for exi device [1], which was slot B
+  // in the menu. So the control to update this setting is removed entirely.
+  // Now we have a different # of slot controls to actual exi devides, so use this to map to exi
+  // settings index
   std::array<size_t, 2> kSlotToExiIndex = {0, 2};
-}
+}  // namespace
+
+enum
+{
+  SLOT_A_INDEX,
+  SLOT_B_INDEX,
+  SLOT_SP1_INDEX,
+  SLOT_COUNT
+};
 
 GameCubePane::GameCubePane()
 {
@@ -135,8 +144,10 @@ void GameCubePane::CreateWidgets()
                             EXIDeviceType::MemoryCardFolder, EXIDeviceType::Gecko,
                             EXIDeviceType::AGP, EXIDeviceType::Microphone})
   {
-    m_slot_combos[0]->addItem(entry.first, entry.second);
-    m_slot_combos[1]->addItem(entry.first, entry.second);
+    const QString name = tr(fmt::format("{:n}", device).c_str());
+    const int value = static_cast<int>(device);
+    m_slot_combos[ExpansionInterface::Slot::A]->addItem(name, value);
+    m_slot_combos[ExpansionInterface::Slot::B]->addItem(name, value);
   }
 
   // Add SP1 devices
@@ -151,18 +162,15 @@ void GameCubePane::CreateWidgets()
            EXIDeviceType::EthernetBuiltIn,
        })
   {
-    m_slot_combos[2]->addItem(entry.first, entry.second);
+    m_slot_combos[ExpansionInterface::Slot::SP1]->addItem(tr(fmt::format("{:n}", device).c_str()),
+                                                          static_cast<int>(device));
   }
 
-  device_layout->addWidget(new QLabel(tr("Slot A:")), 0, 0);
-  device_layout->addWidget(m_slot_combos[0], 0, 1);
-  device_layout->addWidget(m_slot_buttons[0], 0, 2);
-  device_layout->addWidget(new QLabel(tr("Slot B:")), 1, 0);
-  device_layout->addWidget(m_slot_combos[1], 1, 1);
-  device_layout->addWidget(m_slot_buttons[1], 1, 2);
-  device_layout->addWidget(new QLabel(tr("SP1:")), 2, 0);
-  device_layout->addWidget(m_slot_combos[2], 2, 1);
-  device_layout->addWidget(m_slot_buttons[2], 2, 2);
+  {
+    int row = 0;
+    device_layout->addWidget(new QLabel(tr("Slot A:")), row, 0);
+    device_layout->addWidget(m_slot_combos[ExpansionInterface::Slot::A], row, 1);
+    device_layout->addWidget(m_slot_buttons[ExpansionInterface::Slot::A], row, 2);
 
     ++row;
     device_layout->addLayout(m_memcard_path_layouts[ExpansionInterface::Slot::A], row, 0, 1, 3);
@@ -324,11 +332,32 @@ void GameCubePane::UpdateButton(ExpansionInterface::Slot slot)
 
   switch (slot)
   {
-  case SLOT_A_INDEX:
-  case SLOT_B_INDEX:
-    has_config =
-        (value == ExpansionInterface::EXIDEVICE_MEMORYCARD ||
-         value == ExpansionInterface::EXIDEVICE_AGP || value == ExpansionInterface::EXIDEVICE_MIC);
+  case ExpansionInterface::Slot::A:
+  case ExpansionInterface::Slot::B:
+  {
+    has_config = (device == ExpansionInterface::EXIDeviceType::MemoryCard ||
+                  device == ExpansionInterface::EXIDeviceType::MemoryCardFolder ||
+                  device == ExpansionInterface::EXIDeviceType::AGP ||
+                  device == ExpansionInterface::EXIDeviceType::Microphone);
+    const bool hide_memory_card = device != ExpansionInterface::EXIDeviceType::MemoryCard ||
+                                  Config::IsDefaultMemcardPathConfigured(slot);
+    const bool hide_gci_path = device != ExpansionInterface::EXIDeviceType::MemoryCardFolder ||
+                               Config::IsDefaultGCIFolderPathConfigured(slot);
+    m_memcard_path_labels[slot]->setHidden(hide_memory_card);
+    m_memcard_paths[slot]->setHidden(hide_memory_card);
+    m_agp_path_labels[slot]->setHidden(device != ExpansionInterface::EXIDeviceType::AGP);
+    m_agp_paths[slot]->setHidden(device != ExpansionInterface::EXIDeviceType::AGP);
+    m_gci_path_labels[slot]->setHidden(hide_gci_path);
+    m_gci_paths[slot]->setHidden(hide_gci_path);
+
+    // In the years before we introduced the GCI folder configuration paths it has become somewhat
+    // popular to use the GCI override path instead. Check if this is the case and display a warning
+    // if it is set, so users aren't confused why configuring the normal GCI path doesn't do
+    // anything.
+    m_gci_override_labels[slot]->setHidden(
+        device != ExpansionInterface::EXIDeviceType::MemoryCardFolder ||
+        Config::Get(Config::GetInfoForGCIPathOverride(slot)).empty());
+
     break;
   }
   case ExpansionInterface::Slot::SP1:
@@ -440,27 +469,68 @@ bool GameCubePane::SetMemcard(ExpansionInterface::Slot slot, const QString& file
             tr("The file\n%1\nis either corrupted or not a GameCube memory card file.\n%2")
                 .arg(QString::fromStdString(path))
                 .arg(GCMemcardManager::GetErrorMessagesForErrorCode(error_code)));
-        return;
+        return false;
       }
     }
+  }
 
-    bool other_slot_memcard =
-        m_slot_combos[slot == SLOT_A_INDEX ? SLOT_B_INDEX : SLOT_A_INDEX]->currentData().toInt() ==
-        ExpansionInterface::EXIDEVICE_MEMORYCARD;
-    if (other_slot_memcard)
+  // Check if the other slot has the same memory card configured and refuse to use this card if so.
+  // The EU path is compared here, but it doesn't actually matter which one we compare since they
+  // follow a known pattern, so if the EU path matches the other match too and vice-versa.
+  for (ExpansionInterface::Slot other_slot : ExpansionInterface::MEMCARD_SLOTS)
+  {
+    if (other_slot == slot)
+      continue;
+
+    const std::string other_eu_path = Config::GetMemcardPath(other_slot, DiscIO::Region::PAL);
+    if (eu_path == other_eu_path)
     {
-      QString path_b =
-          QFileInfo(QString::fromStdString(slot == 0 ? Config::Get(Config::MAIN_MEMCARD_B_PATH) :
-                                                       Config::Get(Config::MAIN_MEMCARD_A_PATH)))
-              .absoluteFilePath();
-
-      if (path_abs == path_b)
-      {
-        ModalMessageBox::critical(this, tr("Error"),
-                                  tr("The same file can't be used in both slots."));
-        return;
-      }
+      ModalMessageBox::critical(
+          this, tr("Error"),
+          tr("The same file can't be used in multiple slots; it is already used by %1.")
+              .arg(QString::fromStdString(fmt::to_string(other_slot))));
+      return false;
     }
+  }
+
+  const std::string old_eu_path = Config::GetMemcardPath(slot, DiscIO::Region::PAL);
+  Config::SetBase(Config::GetInfoForMemcardPath(slot), raw_path);
+
+  if (Core::IsRunning())
+  {
+    // If emulation is running and the new card is different from the old one, notify the system to
+    // eject the old and insert the new card.
+    // TODO: This should probably done by a config change callback instead.
+    if (eu_path != old_eu_path)
+    {
+      // ChangeDevice unplugs the device for 1 second, which means that games should notice that
+      // the path has changed and thus the memory card contents have changed
+      ExpansionInterface::ChangeDevice(slot, ExpansionInterface::EXIDeviceType::MemoryCard);
+    }
+  }
+
+  LoadSettings();
+  return true;
+}
+
+void GameCubePane::BrowseGCIFolder(ExpansionInterface::Slot slot)
+{
+  ASSERT(ExpansionInterface::IsMemcardSlot(slot));
+
+  const QString path = DolphinFileDialog::getExistingDirectory(
+      this, tr("Choose the GCI base folder"),
+      QString::fromStdString(File::GetUserPath(D_GCUSER_IDX)));
+
+  if (!path.isEmpty())
+    SetGCIFolder(slot, path);
+}
+
+bool GameCubePane::SetGCIFolder(ExpansionInterface::Slot slot, const QString& path)
+{
+  if (path.isEmpty())
+  {
+    ModalMessageBox::critical(this, tr("Error"), tr("Cannot set GCI folder to an empty path."));
+    return false;
   }
 
   std::string raw_path =
@@ -572,13 +642,11 @@ void GameCubePane::SetAGPRom(ExpansionInterface::Slot slot, const QString& filen
 
   if (Core::IsRunning() && path_abs != path_old)
   {
-    ExpansionInterface::ChangeDevice(
-        // SlotB is on channel 1, slotA and SP1 are on 0
-        slot,
-        // The device enum to change to
-        memcard ? ExpansionInterface::EXIDEVICE_MEMORYCARD : ExpansionInterface::EXIDEVICE_AGP,
-        // SP1 is device 2, slots are device 0
-        0);
+    // ChangeDevice unplugs the device for 1 second.  For an actual AGP, you can remove the
+    // cartridge without unplugging it, and it's not clear if the AGP software actually notices
+    // that it's been unplugged or the cartridge has changed, but this was done for memcards so
+    // we might as well do it for the AGP too.
+    ExpansionInterface::ChangeDevice(slot, ExpansionInterface::EXIDeviceType::AGP);
   }
 
   LoadSettings();
@@ -660,10 +728,12 @@ void GameCubePane::LoadSettings()
 
   for (ExpansionInterface::Slot slot : ExpansionInterface::MEMCARD_SLOTS)
   {
-    QSignalBlocker blocker(m_slot_combos[i]);
-    m_slot_combos[i]->setCurrentIndex(
-        m_slot_combos[i]->findData(SConfig::GetInstance().m_EXIDevice[i]));
-    UpdateButton(i);
+    SignalBlocking(m_memcard_paths[slot])
+        ->setText(QString::fromStdString(Config::GetMemcardPath(slot, std::nullopt)));
+    SignalBlocking(m_agp_paths[slot])
+        ->setText(QString::fromStdString(Config::Get(Config::GetInfoForAGPCartPath(slot))));
+    SignalBlocking(m_gci_paths[slot])
+        ->setText(QString::fromStdString(Config::GetGCIFolderPath(slot, std::nullopt)));
   }
 
 #ifdef HAS_LIBMGBA
@@ -693,26 +763,17 @@ void GameCubePane::SaveSettings()
   // Device Settings
   for (ExpansionInterface::Slot slot : ExpansionInterface::SLOTS)
   {
-    const auto dev = ExpansionInterface::TEXIDevices(m_slot_combos[i]->currentData().toInt());
+    const auto dev =
+        static_cast<ExpansionInterface::EXIDeviceType>(m_slot_combos[slot]->currentData().toInt());
+    const ExpansionInterface::EXIDeviceType current_exi_device =
+        Config::Get(Config::GetInfoForEXIDevice(slot));
 
-    if (Core::IsRunning() && SConfig::GetInstance().m_EXIDevice[i] != dev)
+    if (Core::IsRunning() && current_exi_device != dev)
     {
       ExpansionInterface::ChangeDevice(slot, dev);
     }
 
-    SConfig::GetInstance().m_EXIDevice[i] = dev;
-    switch (i)
-    {
-    case SLOT_A_INDEX:
-      Config::SetBaseOrCurrent(Config::MAIN_SLOT_A, dev);
-      break;
-    case SLOT_B_INDEX:
-      Config::SetBaseOrCurrent(Config::MAIN_SLOT_B, dev);
-      break;
-    case SLOT_SP1_INDEX:
-      Config::SetBaseOrCurrent(Config::MAIN_SERIAL_PORT_1, dev);
-      break;
-    }
+    Config::SetBaseOrCurrent(Config::GetInfoForEXIDevice(slot), dev);
   }
 
 #ifdef HAS_LIBMGBA

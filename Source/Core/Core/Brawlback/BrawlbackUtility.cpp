@@ -2,6 +2,7 @@
 
 #include "VideoCommon/OnScreenDisplay.h"
 #include <Core/HW/Memmap.h>
+#include <fmt/format.h>
 
 namespace Brawlback
 {
@@ -62,7 +63,8 @@ namespace Brawlback
         if (data && size)
           sums.push_back(fletcher32_checksum(data, backupLoc.endAddress - backupLoc.startAddress));
         else
-          ERROR_LOG(BRAWLBACK, "Invalid data or size of savestate when computing checksum!\n");
+          ERROR_LOG_FMT(BRAWLBACK,
+                               "Invalid data or size of savestate when computing checksum!\n");
       }
       return fletcher32_checksum((short*)sums.data(), sizeof(int) * sums.size());
     }
@@ -124,7 +126,8 @@ namespace Brawlback
 
         void print_byte(uint8_t byte)
         {
-            INFO_LOG(BRAWLBACK, "Byte: %s%s\n", bit_rep[byte >> 4], bit_rep[byte & 0x0F]);
+            ERROR_LOG_FMT(BRAWLBACK, "Byte: {}{}\n", bit_rep[byte >> 4],
+                          bit_rep[byte & 0x0F]);
         }
         void print_half(u16 half) {
             u8 byte0 = half >> 8;
@@ -169,7 +172,7 @@ namespace Brawlback
         std::string Sync::str_byte(uint8_t byte)
         {
             std::string ret = std::string(bit_rep[byte >> 4]) + std::string(bit_rep[byte & 0x0F]);
-            //INFO_LOG(BRAWLBACK, "Byte: %s%s\n", bit_rep[byte >> 4], bit_rep[byte & 0x0F]);
+            //INFO_LOG_FMT(BRAWLBACK, "Byte: {}{}\n", bit_rep[byte >> 4], bit_rep[byte & 0x0F]);
             return ret;
         }
         std::string Sync::str_half(u16 half) {
@@ -251,13 +254,15 @@ namespace Brawlback
 
             if (!f)
             {
-                ERROR_LOG(BRAWLBACK, "Failed to dump %s: Can't open file\n", filename.c_str());
+                ERROR_LOG_FMT(BRAWLBACK,
+                              "Failed to dump {}: Can't open file\n", filename);
                 return;
             }
 
             if (!f.WriteBytes(data, length))
             {
-                ERROR_LOG(BRAWLBACK, "Failed to dump %s: Failed to write to file\n", filename.c_str());
+                ERROR_LOG_FMT(BRAWLBACK,
+                              "Failed to dump {}: Failed to write to file\n", filename);
             }
         }
 
