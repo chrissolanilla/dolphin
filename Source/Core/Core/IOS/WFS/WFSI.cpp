@@ -3,7 +3,6 @@
 
 #include "Core/IOS/WFS/WFSI.h"
 
-#include <mbedtls/aes.h>
 #include <stack>
 #include <string>
 #include <utility>
@@ -12,6 +11,7 @@
 #include <fmt/format.h>
 
 #include "Common/CommonTypes.h"
+#include "Common/Crypto/AES.h"
 #include "Common/FileUtil.h"
 #include "Common/IOFile.h"
 #include "Common/Logging/Log.h"
@@ -138,7 +138,7 @@ std::optional<IPCReply> WFSIDevice::IOCtl(const IOCtlRequest& request)
     m_continue_install = Memory::Read_U32(request.buffer_in + 36);
 
     INFO_LOG_FMT(IOS_WFS, "IOCTL_WFSI_IMPORT_TITLE_INIT: patch type {}, continue install: {}",
-                 m_patch_type, m_continue_install ? "true" : "false");
+                 static_cast<u32>(m_patch_type), m_continue_install ? "true" : "false");
 
     if (m_patch_type == PatchType::PATCH_TYPE_2)
     {
@@ -167,8 +167,7 @@ std::optional<IPCReply> WFSIDevice::IOCtl(const IOCtlRequest& request)
       break;
     }
 
-    memcpy(m_aes_key, ticket.GetTitleKey(m_ios.GetIOSC()).data(), sizeof(m_aes_key));
-    mbedtls_aes_setkey_dec(&m_aes_ctx, m_aes_key, 128);
+    m_aes_ctx = Common::AES::CreateContextDecrypt(ticket.GetTitleKey(m_ios.GetIOSC()).data());
 
     SetImportTitleIdAndGroupId(m_tmd.GetTitleId(), m_tmd.GetGroupId());
 
@@ -224,8 +223,8 @@ std::optional<IPCReply> WFSIDevice::IOCtl(const IOCtlRequest& request)
                  input_size, input_ptr, content_id);
 
     std::vector<u8> decrypted(input_size);
-    mbedtls_aes_crypt_cbc(&m_aes_ctx, MBEDTLS_AES_DECRYPT, input_size, m_aes_iv,
-                          Memory::GetPointer(input_ptr), decrypted.data());
+    m_aes_ctx->Crypt(m_aes_iv, m_aes_iv, Memory::GetPointer(input_ptr), decrypted.data(),
+                     input_size);
 
     m_arc_unpacker.AddBytes(decrypted);
     break;

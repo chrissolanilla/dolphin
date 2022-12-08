@@ -4,15 +4,14 @@
 #include "Core/IOS/ES/ES.h"
 
 #include <algorithm>
-#include <cinttypes>
 #include <cstddef>
 #include <utility>
 #include <vector>
 
 #include <fmt/format.h>
-#include <mbedtls/sha1.h>
 
 #include "Common/Align.h"
+#include "Common/Crypto/SHA1.h"
 #include "Common/Logging/Log.h"
 #include "Common/NandPaths.h"
 #include "Core/CommonTitles.h"
@@ -26,8 +25,9 @@ namespace IOS::HLE
 static ReturnCode WriteTicket(FS::FileSystem* fs, const ES::TicketReader& ticket)
 {
   const u64 title_id = ticket.GetTitleId();
+  const std::string path = ticket.IsV1Ticket() ? Common::GetV1TicketFileName(title_id) :
+                                                 Common::GetTicketFileName(title_id);
 
-  const std::string path = Common::GetTicketFileName(title_id);
   constexpr FS::Modes ticket_modes{FS::Mode::ReadWrite, FS::Mode::ReadWrite, FS::Mode::None};
   fs->CreateFullPath(PID_KERNEL, PID_KERNEL, path, 0, ticket_modes);
   const auto file = fs->CreateAndOpenFile(PID_KERNEL, PID_KERNEL, path, ticket_modes);
@@ -71,7 +71,7 @@ ReturnCode ESDevice::ImportTicket(const std::vector<u8>& ticket_bytes,
     if (ret < 0)
     {
       ERROR_LOG_FMT(IOS_ES, "ImportTicket: Failed to unpersonalise ticket for {:016x} ({})",
-                    ticket.GetTitleId(), ret);
+                    ticket.GetTitleId(), static_cast<s32>(ret));
       return ret;
     }
   }
@@ -156,7 +156,7 @@ ReturnCode ESDevice::ImportTmd(Context& context, const std::vector<u8>& tmd_byte
                         context.title_import_export.tmd, cert_store);
   if (ret != IPC_SUCCESS)
   {
-    ERROR_LOG_FMT(IOS_ES, "ImportTmd: VerifyContainer failed with error {}", ret);
+    ERROR_LOG_FMT(IOS_ES, "ImportTmd: VerifyContainer failed with error {}", static_cast<s32>(ret));
     return ret;
   }
 
@@ -170,7 +170,7 @@ ReturnCode ESDevice::ImportTmd(Context& context, const std::vector<u8>& tmd_byte
                       &context.title_import_export.key_handle);
   if (ret != IPC_SUCCESS)
   {
-    ERROR_LOG_FMT(IOS_ES, "ImportTmd: InitBackupKey failed with error {}", ret);
+    ERROR_LOG_FMT(IOS_ES, "ImportTmd: InitBackupKey failed with error {}", static_cast<s32>(ret));
     return ret;
   }
 
@@ -354,9 +354,7 @@ IPCReply ESDevice::ImportContentData(Context& context, const IOCtlVRequest& requ
 
 static bool CheckIfContentHashMatches(const std::vector<u8>& content, const ES::Content& info)
 {
-  std::array<u8, 20> sha1;
-  mbedtls_sha1_ret(content.data(), info.size, sha1.data());
-  return sha1 == info.sha1;
+  return Common::SHA1::CalculateDigest(content.data(), info.size) == info.sha1;
 }
 
 static std::string GetImportContentPath(u64 title_id, u32 content_id)
@@ -564,7 +562,9 @@ ReturnCode ESDevice::DeleteTicket(const u8* ticket_view)
   ticket.DeleteTicket(ticket_id);
 
   const std::vector<u8>& new_ticket = ticket.GetBytes();
-  const std::string ticket_path = Common::GetTicketFileName(title_id);
+  const std::string ticket_path = ticket.IsV1Ticket() ? Common::GetV1TicketFileName(title_id) :
+                                                        Common::GetTicketFileName(title_id);
+
   if (!new_ticket.empty())
   {
     const auto file = fs->OpenFile(PID_KERNEL, PID_KERNEL, ticket_path, FS::Mode::ReadWrite);
@@ -763,11 +763,11 @@ ReturnCode ESDevice::ExportContentData(Context& context, u32 content_fd, u8* dat
   buffer.resize(Common::AlignUp(buffer.size(), 32));
 
   std::vector<u8> output(buffer.size());
-  const ReturnCode decrypt_ret = m_ios.GetIOSC().Encrypt(
+  const ReturnCode encrypt_ret = m_ios.GetIOSC().Encrypt(
       context.title_import_export.key_handle, context.title_import_export.content.iv.data(),
       buffer.data(), buffer.size(), output.data(), PID_ES);
-  if (decrypt_ret != IPC_SUCCESS)
-    return decrypt_ret;
+  if (encrypt_ret != IPC_SUCCESS)
+    return encrypt_ret;
 
   std::copy(output.cbegin(), output.cend(), data);
   return IPC_SUCCESS;

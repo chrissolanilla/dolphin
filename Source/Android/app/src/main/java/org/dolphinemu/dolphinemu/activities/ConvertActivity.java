@@ -6,10 +6,14 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 
-import org.dolphinemu.dolphinemu.R;
-import org.dolphinemu.dolphinemu.fragments.ConvertFragment;
-
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.view.WindowCompat;
+
+import org.dolphinemu.dolphinemu.R;
+import org.dolphinemu.dolphinemu.databinding.ActivityConvertBinding;
+import org.dolphinemu.dolphinemu.fragments.ConvertFragment;
+import org.dolphinemu.dolphinemu.utils.InsetsHelper;
+import org.dolphinemu.dolphinemu.utils.ThemeHelper;
 
 public class ConvertActivity extends AppCompatActivity
 {
@@ -25,9 +29,14 @@ public class ConvertActivity extends AppCompatActivity
   @Override
   protected void onCreate(Bundle savedInstanceState)
   {
+    ThemeHelper.setTheme(this);
+
     super.onCreate(savedInstanceState);
 
-    setContentView(R.layout.activity_convert);
+    ActivityConvertBinding binding = ActivityConvertBinding.inflate(getLayoutInflater());
+    setContentView(binding.getRoot());
+
+    WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
 
     String path = getIntent().getStringExtra(ARG_GAME_PATH);
 
@@ -38,5 +47,20 @@ public class ConvertActivity extends AppCompatActivity
       fragment = ConvertFragment.newInstance(path);
       getSupportFragmentManager().beginTransaction().add(R.id.fragment_convert, fragment).commit();
     }
+
+    binding.toolbarConvertLayout.setTitle(getString(R.string.convert_convert));
+    setSupportActionBar(binding.toolbarConvert);
+    getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+
+    InsetsHelper.setUpAppBarWithScrollView(this, binding.appbarConvert, binding.scrollViewConvert,
+            binding.workaroundView);
+    ThemeHelper.enableScrollTint(this, binding.toolbarConvert, binding.appbarConvert);
+  }
+
+  @Override
+  public boolean onSupportNavigateUp()
+  {
+    onBackPressed();
+    return true;
   }
 }

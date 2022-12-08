@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "VideoBackends/D3D12/DescriptorHeapManager.h"
+
 #include "Common/Assert.h"
+
 #include "VideoBackends/D3D12/DX12Context.h"
 #include "VideoCommon/VideoConfig.h"
 
@@ -18,12 +20,11 @@ bool DescriptorHeapManager::Create(ID3D12Device* device, D3D12_DESCRIPTOR_HEAP_T
                                      D3D12_DESCRIPTOR_HEAP_FLAG_NONE};
 
   HRESULT hr = device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&m_descriptor_heap));
-  CHECK(SUCCEEDED(hr), "Create descriptor heap");
+  ASSERT_MSG(VIDEO, SUCCEEDED(hr), "Failed to create descriptor heap: {}", DX12HRWrap(hr));
   if (FAILED(hr))
     return false;
 
   m_heap_base_cpu = m_descriptor_heap->GetCPUDescriptorHandleForHeapStart();
-  m_heap_base_gpu = m_descriptor_heap->GetGPUDescriptorHandleForHeapStart();
   m_num_descriptors = num_descriptors;
   m_descriptor_increment_size = device->GetDescriptorHandleIncrementSize(type);
 
@@ -58,7 +59,7 @@ bool DescriptorHeapManager::Allocate(DescriptorHandle* handle)
 
     handle->index = index;
     handle->cpu_handle.ptr = m_heap_base_cpu.ptr + index * m_descriptor_increment_size;
-    handle->gpu_handle.ptr = m_heap_base_gpu.ptr + index * m_descriptor_increment_size;
+    handle->gpu_handle.ptr = 0;
     return true;
   }
 
@@ -174,7 +175,7 @@ bool SamplerHeapManager::Create(ID3D12Device* device, u32 num_descriptors)
 {
   const D3D12_DESCRIPTOR_HEAP_DESC desc = {D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, num_descriptors};
   HRESULT hr = device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&m_descriptor_heap));
-  CHECK(SUCCEEDED(hr), "Failed to create sampler descriptor heap");
+  ASSERT_MSG(VIDEO, SUCCEEDED(hr), "Failed to create sampler descriptor heap: {}", DX12HRWrap(hr));
   if (FAILED(hr))
     return false;
 

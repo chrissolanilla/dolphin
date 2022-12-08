@@ -26,6 +26,7 @@
 #include "Core/IOS/IOSC.h"
 #include "Core/IOS/Uids.h"
 #include "Core/IOS/VersionInfo.h"
+#include "Core/System.h"
 #include "DiscIO/Enums.h"
 
 namespace IOS::HLE
@@ -91,7 +92,7 @@ ESDevice::ESDevice(Kernel& ios, const std::string& device_name) : Device(ios, de
     if (result != FS::ResultCode::Success && result != FS::ResultCode::AlreadyExists)
     {
       ERROR_LOG_FMT(IOS_ES, "Failed to create {}: error {}", directory.path,
-                    FS::ConvertResult(result));
+                    static_cast<s32>(FS::ConvertResult(result)));
     }
 
     // Now update the UID/GID and other attributes.
@@ -103,8 +104,10 @@ ESDevice::ESDevice(Kernel& ios, const std::string& device_name) : Device(ios, de
 
   if (Core::IsRunningAndStarted())
   {
-    CoreTiming::RemoveEvent(s_finish_init_event);
-    CoreTiming::ScheduleEvent(GetESBootTicks(m_ios.GetVersion()), s_finish_init_event);
+    auto& system = Core::System::GetInstance();
+    auto& core_timing = system.GetCoreTiming();
+    core_timing.RemoveEvent(s_finish_init_event);
+    core_timing.ScheduleEvent(GetESBootTicks(m_ios.GetVersion()), s_finish_init_event);
   }
   else
   {
@@ -114,14 +117,18 @@ ESDevice::ESDevice(Kernel& ios, const std::string& device_name) : Device(ios, de
 
 void ESDevice::InitializeEmulationState()
 {
-  s_finish_init_event = CoreTiming::RegisterEvent(
-      "IOS-ESFinishInit", [](u64, s64) { GetIOS()->GetES()->FinishInit(); });
-  s_reload_ios_for_ppc_launch_event =
-      CoreTiming::RegisterEvent("IOS-ESReloadIOSForPPCLaunch", [](u64 ios_id, s64) {
+  auto& system = Core::System::GetInstance();
+  auto& core_timing = system.GetCoreTiming();
+  s_finish_init_event = core_timing.RegisterEvent(
+      "IOS-ESFinishInit", [](Core::System& system, u64, s64) { GetIOS()->GetES()->FinishInit(); });
+  s_reload_ios_for_ppc_launch_event = core_timing.RegisterEvent(
+      "IOS-ESReloadIOSForPPCLaunch", [](Core::System& system, u64 ios_id, s64) {
         GetIOS()->GetES()->LaunchTitle(ios_id, HangPPC::Yes);
       });
-  s_bootstrap_ppc_for_launch_event = CoreTiming::RegisterEvent(
-      "IOS-ESBootstrapPPCForLaunch", [](u64, s64) { GetIOS()->GetES()->BootstrapPPC(); });
+  s_bootstrap_ppc_for_launch_event =
+      core_timing.RegisterEvent("IOS-ESBootstrapPPCForLaunch", [](Core::System& system, u64, s64) {
+        GetIOS()->GetES()->BootstrapPPC();
+      });
 }
 
 void ESDevice::FinalizeEmulationState()
@@ -395,6 +402,9 @@ bool ESDevice::LaunchPPCTitle(u64 title_id)
     return false;
   }
 
+  auto& system = Core::System::GetInstance();
+  auto& core_timing = system.GetCoreTiming();
+
   // Before launching a title, IOS first reads the TMD and reloads into the specified IOS version,
   // even when that version is already running. After it has reloaded, ES_Launch will be called
   // again and the PPC will be bootstrapped then.
@@ -415,8 +425,8 @@ bool ESDevice::LaunchPPCTitle(u64 title_id)
     const u64 required_ios = tmd.GetIOSId();
     if (!Core::IsRunningAndStarted())
       return LaunchTitle(required_ios, HangPPC::Yes);
-    CoreTiming::RemoveEvent(s_reload_ios_for_ppc_launch_event);
-    CoreTiming::ScheduleEvent(ticks, s_reload_ios_for_ppc_launch_event, required_ios);
+    core_timing.RemoveEvent(s_reload_ios_for_ppc_launch_event);
+    core_timing.ScheduleEvent(ticks, s_reload_ios_for_ppc_launch_event, required_ios);
     return true;
   }
 
@@ -444,8 +454,9 @@ bool ESDevice::LaunchPPCTitle(u64 title_id)
   m_pending_ppc_boot_content_path = GetContentPath(tmd.GetTitleId(), content);
   if (!Core::IsRunningAndStarted())
     return BootstrapPPC();
-  CoreTiming::RemoveEvent(s_bootstrap_ppc_for_launch_event);
-  CoreTiming::ScheduleEvent(ticks, s_bootstrap_ppc_for_launch_event);
+
+  core_timing.RemoveEvent(s_bootstrap_ppc_for_launch_event);
+  core_timing.ScheduleEvent(ticks, s_bootstrap_ppc_for_launch_event);
   return true;
 }
 
@@ -1047,17 +1058,19 @@ ReturnCode ESDevice::VerifyContainer(VerifyContainerType type, VerifyMode mode,
   // IOS assumes that the CA cert will always be signed by the root certificate,
   // and that the issuer is signed by the CA.
   IOSC& iosc = m_ios.GetIOSC();
-  IOSC::Handle handle;
+  IOSC::Handle ca_handle;
 
   // Create and initialise a handle for the CA cert and the issuer cert.
-  ReturnCode ret = iosc.CreateObject(&handle, IOSC::TYPE_PUBLIC_KEY, IOSC::SUBTYPE_RSA2048, PID_ES);
+  ReturnCode ret =
+      iosc.CreateObject(&ca_handle, IOSC::TYPE_PUBLIC_KEY, IOSC::SUBTYPE_RSA2048, PID_ES);
   if (ret != IPC_SUCCESS)
     return ret;
-  Common::ScopeGuard ca_guard{[&] { iosc.DeleteObject(handle, PID_ES); }};
-  ret = iosc.ImportCertificate(ca_cert, IOSC::HANDLE_ROOT_KEY, handle, PID_ES);
+  Common::ScopeGuard ca_guard{[&] { iosc.DeleteObject(ca_handle, PID_ES); }};
+  ret = iosc.ImportCertificate(ca_cert, IOSC::HANDLE_ROOT_KEY, ca_handle, PID_ES);
   if (ret != IPC_SUCCESS)
   {
-    ERROR_LOG_FMT(IOS_ES, "VerifyContainer: IOSC_ImportCertificate(ca) failed with error {}", ret);
+    ERROR_LOG_FMT(IOS_ES, "VerifyContainer: IOSC_ImportCertificate(ca) failed with error {}",
+                  static_cast<s32>(ret));
     return ret;
   }
 
@@ -1068,11 +1081,11 @@ ReturnCode ESDevice::VerifyContainer(VerifyContainerType type, VerifyMode mode,
   if (ret != IPC_SUCCESS)
     return ret;
   Common::ScopeGuard issuer_guard{[&] { iosc.DeleteObject(issuer_handle, PID_ES); }};
-  ret = iosc.ImportCertificate(issuer_cert, handle, issuer_handle, PID_ES);
+  ret = iosc.ImportCertificate(issuer_cert, ca_handle, issuer_handle, PID_ES);
   if (ret != IPC_SUCCESS)
   {
     ERROR_LOG_FMT(IOS_ES, "VerifyContainer: IOSC_ImportCertificate(issuer) failed with error {}",
-                  ret);
+                  static_cast<s32>(ret));
     return ret;
   }
 
@@ -1081,7 +1094,8 @@ ReturnCode ESDevice::VerifyContainer(VerifyContainerType type, VerifyMode mode,
   ret = iosc.VerifyPublicKeySign(signed_blob.GetSha1(), issuer_handle, signature, PID_ES);
   if (ret != IPC_SUCCESS)
   {
-    ERROR_LOG_FMT(IOS_ES, "VerifyContainer: IOSC_VerifyPublicKeySign failed with error {}", ret);
+    ERROR_LOG_FMT(IOS_ES, "VerifyContainer: IOSC_VerifyPublicKeySign failed with error {}",
+                  static_cast<s32>(ret));
     return ret;
   }
 
@@ -1091,12 +1105,13 @@ ReturnCode ESDevice::VerifyContainer(VerifyContainerType type, VerifyMode mode,
     if (ret != IPC_SUCCESS)
     {
       ERROR_LOG_FMT(IOS_ES, "VerifyContainer: Writing the issuer cert failed with return code {}",
-                    ret);
+                    static_cast<s32>(ret));
     }
 
     ret = WriteNewCertToStore(ca_cert);
     if (ret != IPC_SUCCESS)
-      ERROR_LOG_FMT(IOS_ES, "VerifyContainer: Writing the CA cert failed with return code {}", ret);
+      ERROR_LOG_FMT(IOS_ES, "VerifyContainer: Writing the CA cert failed with return code {}",
+                    static_cast<s32>(ret));
   }
 
   if (ret == IPC_SUCCESS && issuer_handle_out)

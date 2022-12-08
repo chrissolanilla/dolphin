@@ -14,6 +14,7 @@
 #include "Core/Host.h"
 #include "Core/PowerPC/GDBStub.h"
 #include "Core/PowerPC/PowerPC.h"
+#include "Core/System.h"
 #include "VideoCommon/Fifo.h"
 
 namespace CPU
@@ -136,7 +137,8 @@ void Run()
         state_lock.unlock();
         if (GDBStub::IsActive() && GDBStub::HasControl())
         {
-          GDBStub::SendSignal(GDBStub::Signal::Sigtrap);
+          if (!GDBStub::JustConnected())
+            GDBStub::SendSignal(GDBStub::Signal::Sigtrap);
           GDBStub::ProcessCommands(true);
           // If we are still going to step, emulate the fact we just sent a step command
           if (GDBStub::HasControl())
@@ -192,7 +194,7 @@ static void RunAdjacentSystems(bool running)
   Fifo::EmulatorState(running);
   // Core is responsible for shutting down the sound stream.
   if (s_state != State::PowerDown)
-    AudioCommon::SetSoundStreamRunning(running);
+    AudioCommon::SetSoundStreamRunning(Core::System::GetInstance(), running);
 }
 
 void Stop()

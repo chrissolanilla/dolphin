@@ -24,12 +24,17 @@
 #include "Core/PowerPC/JitArm64/JitArm64_RegCache.h"
 #include "Core/PowerPC/JitInterface.h"
 #include "Core/PowerPC/Profiler.h"
+#include "Core/System.h"
 
 using namespace Arm64Gen;
 
 constexpr size_t CODE_SIZE = 1024 * 1024 * 32;
-constexpr size_t FARCODE_SIZE = 1024 * 1024 * 16;
-constexpr size_t FARCODE_SIZE_MMU = 1024 * 1024 * 48;
+// We use a bigger farcode size for JitArm64 than Jit64, because JitArm64 always emits farcode
+// for the slow path of each loadstore instruction. Jit64 postpones emitting farcode until the
+// farcode actually is needed, saving it from having to emit farcode for most instructions.
+// TODO: Perhaps implement something similar to Jit64. But using more RAM isn't much of a problem.
+constexpr size_t FARCODE_SIZE = 1024 * 1024 * 64;
+constexpr size_t FARCODE_SIZE_MMU = 1024 * 1024 * 64;
 
 constexpr size_t STACK_SIZE = 2 * 1024 * 1024;
 constexpr size_t SAFE_STACK_SIZE = 512 * 1024;
@@ -44,11 +49,11 @@ JitArm64::~JitArm64() = default;
 
 void JitArm64::Init()
 {
-  const size_t child_code_size = SConfig::GetInstance().bMMU ? FARCODE_SIZE_MMU : FARCODE_SIZE;
+  const size_t child_code_size = m_mmu_enabled ? FARCODE_SIZE_MMU : FARCODE_SIZE;
   AllocCodeSpace(CODE_SIZE + child_code_size);
   AddChildCodeSpace(&m_far_code, child_code_size);
 
-  jo.fastmem_arena = SConfig::GetInstance().bFastmem && Memory::InitFastmemArena();
+  jo.fastmem_arena = m_fastmem_enabled && Memory::InitFastmemArena();
   jo.enableBlocklink = true;
   jo.optimizeGatherPipe = true;
   UpdateMemoryAndExceptionOptions();
@@ -63,8 +68,7 @@ void JitArm64::Init()
   analyzer.SetOption(PPCAnalyst::PPCAnalyzer::OPTION_CARRY_MERGE);
   analyzer.SetOption(PPCAnalyst::PPCAnalyzer::OPTION_BRANCH_FOLLOW);
 
-  m_enable_blr_optimization = jo.enableBlocklink && SConfig::GetInstance().bFastmem &&
-                              !SConfig::GetInstance().bEnableDebugging;
+  m_enable_blr_optimization = jo.enableBlocklink && m_fastmem_enabled && !m_enable_debugging;
   m_cleanup_after_stackfault = false;
 
   AllocStack();
@@ -117,7 +121,7 @@ bool JitArm64::HandleStackFault()
   Common::UnWriteProtectMemory(m_stack_base + GUARD_OFFSET, GUARD_SIZE);
 #endif
   GetBlockCache()->InvalidateICache(0, 0xffffffff, true);
-  CoreTiming::ForceExceptionCheck(0);
+  Core::System::GetInstance().GetCoreTiming().ForceExceptionCheck(0);
   m_cleanup_after_stackfault = true;
 
   return true;
@@ -315,6 +319,51 @@ void JitArm64::FreeStack()
   m_stack_base = nullptr;
   m_stack_pointer = nullptr;
 #endif
+}
+
+void JitArm64::IntializeSpeculativeConstants()
+{
+  // If the block depends on an input register which looks like a gather pipe or MMIO related
+  // constant, guess that it is actually a constant input, and specialize the block based on this
+  // assumption. This happens when there are branches in code writing to the gather pipe, but only
+  // the first block loads the constant.
+  // Insert a check at the start of the block to verify that the value is actually constant.
+  // This can save a lot of backpatching and optimize gather pipe writes in more places.
+  const u8* fail = nullptr;
+  for (auto i : code_block.m_gpr_inputs)
+  {
+    u32 compile_time_value = PowerPC::ppcState.gpr[i];
+    if (PowerPC::IsOptimizableGatherPipeWrite(compile_time_value) ||
+        PowerPC::IsOptimizableGatherPipeWrite(compile_time_value - 0x8000) ||
+        compile_time_value == 0xCC000000)
+    {
+      if (!fail)
+      {
+        SwitchToFarCode();
+        fail = GetCodePtr();
+        MOVI2R(DISPATCHER_PC, js.blockStart);
+        STR(IndexType::Unsigned, DISPATCHER_PC, PPC_REG, PPCSTATE_OFF(pc));
+        MOVP2R(ARM64Reg::X8, &JitInterface::CompileExceptionCheck);
+        MOVI2R(ARM64Reg::W0, static_cast<u32>(JitInterface::ExceptionType::SpeculativeConstants));
+        // Write dispatcher_no_check to LR for tail call
+        MOVP2R(ARM64Reg::X30, dispatcher_no_check);
+        BR(ARM64Reg::X8);
+        SwitchToNearCode();
+      }
+
+      ARM64Reg tmp = gpr.GetReg();
+      ARM64Reg value = gpr.R(i);
+      MOVI2R(tmp, compile_time_value);
+      CMP(value, tmp);
+      gpr.Unlock(tmp);
+
+      FixupBranch no_fail = B(CCFlags::CC_EQ);
+      B(fail);
+      SetJumpTarget(no_fail);
+
+      gpr.SetImmediate(i, compile_time_value, true);
+    }
+  }
 }
 
 void JitArm64::WriteExit(u32 destination, bool LK, u32 exit_address_after_return)
@@ -651,7 +700,7 @@ void JitArm64::Jit(u32 em_address, bool clear_cache_and_retry_on_failure)
 
   std::size_t block_size = m_code_buffer.size();
 
-  if (SConfig::GetInstance().bEnableDebugging)
+  if (m_enable_debugging)
   {
     // Comment out the following to disable breakpoints (speed-up)
     block_size = 1;
@@ -706,14 +755,15 @@ void JitArm64::Jit(u32 em_address, bool clear_cache_and_retry_on_failure)
   {
     // Code generation failed due to not enough free space in either the near or far code regions.
     // Clear the entire JIT cache and retry.
-    WARN_LOG(POWERPC, "flushing code caches, please report if this happens a lot");
+    WARN_LOG_FMT(POWERPC, "flushing code caches, please report if this happens a lot");
     ClearCache();
     Jit(em_address, false);
     return;
   }
 
-  PanicAlertT("JIT failed to find code space after a cache clear. This should never happen. Please "
-              "report this incident on the bug tracker. Dolphin will now exit.");
+  PanicAlertFmtT(
+      "JIT failed to find code space after a cache clear. This should never happen. Please "
+      "report this incident on the bug tracker. Dolphin will now exit.");
   exit(-1);
 }
 
@@ -724,7 +774,7 @@ bool JitArm64::SetEmitterStateToFreeCodeRegion()
   auto free_near = m_free_ranges_near.by_size_begin();
   if (free_near == m_free_ranges_near.by_size_end())
   {
-    WARN_LOG(POWERPC, "Failed to find free memory region in near code region.");
+    WARN_LOG_FMT(POWERPC, "Failed to find free memory region in near code region.");
     return false;
   }
   SetCodePtr(free_near.from(), free_near.to());
@@ -732,7 +782,7 @@ bool JitArm64::SetEmitterStateToFreeCodeRegion()
   auto free_far = m_free_ranges_far.by_size_begin();
   if (free_far == m_free_ranges_far.by_size_end())
   {
-    WARN_LOG(POWERPC, "Failed to find free memory region in far code region.");
+    WARN_LOG_FMT(POWERPC, "Failed to find free memory region in far code region.");
     return false;
   }
   m_far_code.SetCodePtr(free_far.from(), free_far.to());
@@ -789,10 +839,11 @@ bool JitArm64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
       SetJumpTarget(fail);
       MOVI2R(DISPATCHER_PC, js.blockStart);
       STR(IndexType::Unsigned, DISPATCHER_PC, PPC_REG, PPCSTATE_OFF(pc));
+      MOVP2R(ARM64Reg::X8, &JitInterface::CompileExceptionCheck);
       MOVI2R(ARM64Reg::W0, static_cast<u32>(JitInterface::ExceptionType::PairedQuantize));
-      MOVP2R(ARM64Reg::X1, &JitInterface::CompileExceptionCheck);
-      BLR(ARM64Reg::X1);
-      B(dispatcher_no_check);
+      // Write dispatcher_no_check to LR for tail call
+      MOVP2R(ARM64Reg::X30, dispatcher_no_check);
+      BR(ARM64Reg::X8);
       SwitchToNearCode();
       SetJumpTarget(no_fail);
       js.assumeNoPairedQuantize = true;
@@ -801,6 +852,12 @@ bool JitArm64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
 
   gpr.Start(js.gpa);
   fpr.Start(js.fpa);
+
+  if (js.noSpeculativeConstantsAddresses.find(js.blockStart) ==
+      js.noSpeculativeConstantsAddresses.end())
+  {
+    IntializeSpeculativeConstants();
+  }
 
   // Translate instructions
   for (u32 i = 0; i < code_block.m_num_instructions; i++)
@@ -816,7 +873,7 @@ bool JitArm64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
     js.downcountAmount += opinfo->numCycles;
     js.isLastInstruction = i == (code_block.m_num_instructions - 1);
 
-    if (!SConfig::GetInstance().bEnableDebugging)
+    if (!m_enable_debugging)
       js.downcountAmount += PatchEngine::GetSpeedhackCycles(js.compilerPC);
 
     // Skip calling UpdateLastUsed for lmw/stmw - it usually hurts more than it helps
@@ -831,7 +888,8 @@ bool JitArm64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
     // Gather pipe writes using a non-immediate address are discovered by profiling.
     bool gatherPipeIntCheck = js.fifoWriteAddresses.find(op.address) != js.fifoWriteAddresses.end();
 
-    if (jo.optimizeGatherPipe && (js.fifoBytesSinceCheck >= 32 || js.mustCheckFifo))
+    if (jo.optimizeGatherPipe &&
+        (js.fifoBytesSinceCheck >= GPFifo::GATHER_PIPE_SIZE || js.mustCheckFifo))
     {
       js.fifoBytesSinceCheck = 0;
       js.mustCheckFifo = false;
@@ -858,8 +916,8 @@ bool JitArm64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
       SetJumpTarget(exception);
       LDR(IndexType::Unsigned, ARM64Reg::W30, PPC_REG, PPCSTATE_OFF(msr));
       TBZ(ARM64Reg::W30, 15, done_here);  // MSR.EE
-      MOVP2R(ARM64Reg::X30, &ProcessorInterface::m_InterruptCause);
-      LDR(IndexType::Unsigned, ARM64Reg::W30, ARM64Reg::X30, 0);
+      LDR(IndexType::Unsigned, ARM64Reg::W30, ARM64Reg::X30,
+          MOVPage2R(ARM64Reg::X30, &ProcessorInterface::m_InterruptCause));
       constexpr u32 cause_mask = ProcessorInterface::INT_CAUSE_CP |
                                  ProcessorInterface::INT_CAUSE_PE_TOKEN |
                                  ProcessorInterface::INT_CAUSE_PE_FINISH;
@@ -894,8 +952,7 @@ bool JitArm64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
       SetJumpTarget(exception);
       LDR(IndexType::Unsigned, WA, PPC_REG, PPCSTATE_OFF(msr));
       TBZ(WA, 15, done_here);  // MSR.EE
-      MOVP2R(XA, &ProcessorInterface::m_InterruptCause);
-      LDR(IndexType::Unsigned, WA, XA, 0);
+      LDR(IndexType::Unsigned, WA, XA, MOVPage2R(XA, &ProcessorInterface::m_InterruptCause));
       constexpr u32 cause_mask = ProcessorInterface::INT_CAUSE_CP |
                                  ProcessorInterface::INT_CAUSE_PE_TOKEN |
                                  ProcessorInterface::INT_CAUSE_PE_FINISH;
@@ -946,7 +1003,7 @@ bool JitArm64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
         js.firstFPInstructionFound = true;
       }
 
-      if (SConfig::GetInstance().bJITRegisterCacheOff)
+      if (bJITRegisterCacheOff)
       {
         gpr.Flush(FlushMode::All, ARM64Reg::INVALID_REG);
         fpr.Flush(FlushMode::All, ARM64Reg::INVALID_REG);
@@ -961,13 +1018,13 @@ bool JitArm64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
         FlushCarry();
 
       // If we have a register that will never be used again, discard or flush it.
-      if (!SConfig::GetInstance().bJITRegisterCacheOff)
+      if (!bJITRegisterCacheOff)
       {
         gpr.DiscardRegisters(op.gprDiscardable);
         fpr.DiscardRegisters(op.fprDiscardable);
       }
-      gpr.StoreRegisters(~op.gprInUse);
-      fpr.StoreRegisters(~op.fprInUse);
+      gpr.StoreRegisters(~op.gprInUse & (op.regsIn | op.regsOut));
+      fpr.StoreRegisters(~op.fprInUse & (op.fregsIn | op.GetFregsOut()));
 
       if (opinfo->flags & FL_LOADSTORE)
         ++js.numLoadStoreInst;
@@ -990,9 +1047,9 @@ bool JitArm64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
   if (HasWriteFailed() || m_far_code.HasWriteFailed())
   {
     if (HasWriteFailed())
-      WARN_LOG(POWERPC, "JIT ran out of space in near code region during code generation.");
+      WARN_LOG_FMT(POWERPC, "JIT ran out of space in near code region during code generation.");
     if (m_far_code.HasWriteFailed())
-      WARN_LOG(POWERPC, "JIT ran out of space in far code region during code generation.");
+      WARN_LOG_FMT(POWERPC, "JIT ran out of space in far code region during code generation.");
 
     return false;
   }

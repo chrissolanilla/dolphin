@@ -16,6 +16,7 @@ constexpr jint LAYER_BASE_OR_CURRENT = 0;
 constexpr jint LAYER_BASE = 1;
 constexpr jint LAYER_LOCAL_GAME = 2;
 constexpr jint LAYER_ACTIVE = 3;
+constexpr jint LAYER_CURRENT = 4;
 
 static Config::Location GetLocation(JNIEnv* env, jstring file, jstring section, jstring key)
 {
@@ -37,6 +38,10 @@ static Config::Location GetLocation(JNIEnv* env, jstring file, jstring section, 
   else if (decoded_file == "Logger")
   {
     system = Config::System::Logger;
+  }
+  else if (decoded_file == "WiimoteNew")
+  {
+    system = Config::System::WiiPad;
   }
   else
   {
@@ -70,6 +75,10 @@ static std::shared_ptr<Config::Layer> GetLayer(jint layer, const Config::Locatio
 
   case LAYER_ACTIVE:
     layer_type = Config::GetActiveLayerForConfig(location);
+    break;
+
+  case LAYER_CURRENT:
+    layer_type = Config::LayerType::CurrentRun;
     break;
 
   default:
@@ -147,7 +156,10 @@ Java_org_dolphinemu_dolphinemu_features_settings_model_NativeConfig_deleteKey(
     JNIEnv* env, jclass, jint layer, jstring file, jstring section, jstring key)
 {
   const Config::Location location = GetLocation(env, file, section, key);
-  return static_cast<jboolean>(GetLayer(layer, location)->DeleteKey(location));
+  const bool had_value = GetLayer(layer, location)->DeleteKey(location);
+  if (had_value)
+    Config::OnConfigChanged();
+  return static_cast<jboolean>(had_value);
 }
 
 JNIEXPORT jstring JNICALL

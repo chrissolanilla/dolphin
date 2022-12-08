@@ -13,6 +13,7 @@
 #include "Core/PowerPC/Jit64Common/Jit64Constants.h"
 #include "Core/PowerPC/PPCAnalyst.h"
 #include "Core/PowerPC/PowerPC.h"
+#include "Core/System.h"
 
 struct CachedInterpreter::Instruction
 {
@@ -100,7 +101,8 @@ void CachedInterpreter::ExecuteOneBlock()
       break;
 
     default:
-      ERROR_LOG_FMT(POWERPC, "Unknown CachedInterpreter Instruction: {}", code->type);
+      ERROR_LOG_FMT(POWERPC, "Unknown CachedInterpreter Instruction: {}",
+                    static_cast<int>(code->type));
       break;
     }
   }
@@ -108,12 +110,15 @@ void CachedInterpreter::ExecuteOneBlock()
 
 void CachedInterpreter::Run()
 {
+  auto& system = Core::System::GetInstance();
+  auto& core_timing = system.GetCoreTiming();
+
   const CPU::State* state_ptr = CPU::GetStatePtr();
   while (CPU::GetState() == CPU::State::Running)
   {
     // Start new timing slice
     // NOTE: Exceptions may change PC
-    CoreTiming::Advance();
+    core_timing.Advance();
 
     do
     {
@@ -125,7 +130,7 @@ void CachedInterpreter::Run()
 void CachedInterpreter::SingleStep()
 {
   // Enter new timing slice
-  CoreTiming::Advance();
+  Core::System::GetInstance().GetCoreTiming().Advance();
   ExecuteOneBlock();
 }
 
@@ -206,7 +211,7 @@ static bool CheckIdle(u32 idle_pc)
 {
   if (PowerPC::ppcState.npc == idle_pc)
   {
-    CoreTiming::Idle();
+    Core::System::GetInstance().GetCoreTiming().Idle();
   }
   return false;
 }
@@ -273,8 +278,8 @@ void CachedInterpreter::Jit(u32 address)
 
     if (!op.skip)
     {
-      const bool breakpoint = SConfig::GetInstance().bEnableDebugging &&
-                              PowerPC::breakpoints.IsAddressBreakPoint(op.address);
+      const bool breakpoint =
+          m_enable_debugging && PowerPC::breakpoints.IsAddressBreakPoint(op.address);
       const bool check_fpu = (op.opinfo->flags & FL_USE_FPU) && !js.firstFPInstructionFound;
       const bool endblock = (op.opinfo->flags & FL_ENDBLOCK) != 0;
       const bool memcheck = (op.opinfo->flags & FL_LOADSTORE) && jo.memcheck;

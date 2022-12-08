@@ -9,10 +9,17 @@
 
 #include <QWidget>
 
+#include "Common/EnumMap.h"
+#include "Core/HW/EXI/EXI.h"
+
 class QCheckBox;
 class QComboBox;
+class QHBoxLayout;
+class QLabel;
 class QLineEdit;
 class QPushButton;
+class QString;
+class QVBoxLayout;
 
 class GameCubePane : public QWidget
 {
@@ -31,9 +38,15 @@ private:
 
   void OnEmulationStateChanged();
 
-  void UpdateButton(int slot);
-  void OnConfigPressed(int slot);
+  void UpdateButton(ExpansionInterface::Slot slot);
+  void OnConfigPressed(ExpansionInterface::Slot slot);
 
+  void BrowseMemcard(ExpansionInterface::Slot slot);
+  bool SetMemcard(ExpansionInterface::Slot slot, const QString& filename);
+  void BrowseGCIFolder(ExpansionInterface::Slot slot);
+  bool SetGCIFolder(ExpansionInterface::Slot slot, const QString& path);
+  void BrowseAGPRom(ExpansionInterface::Slot slot);
+  void SetAGPRom(ExpansionInterface::Slot slot, const QString& filename);
   void BrowseGBABios();
   void BrowseGBARom(size_t index);
   void SaveRomPathChanged();
@@ -42,15 +55,21 @@ private:
   QCheckBox* m_skip_main_menu;
   QComboBox* m_language_combo;
 
-  enum
-  {
-    SLOT_A_INDEX,
-    SLOT_SP1_INDEX,
-    SLOT_COUNT
-  };
+  Common::EnumMap<QPushButton*, ExpansionInterface::MAX_SLOT> m_slot_buttons;
+  Common::EnumMap<QComboBox*, ExpansionInterface::MAX_SLOT> m_slot_combos;
 
-  QPushButton* m_slot_buttons[SLOT_COUNT];
-  QComboBox* m_slot_combos[SLOT_COUNT];
+  Common::EnumMap<QHBoxLayout*, ExpansionInterface::MAX_MEMCARD_SLOT> m_memcard_path_layouts;
+  Common::EnumMap<QLabel*, ExpansionInterface::MAX_MEMCARD_SLOT> m_memcard_path_labels;
+  Common::EnumMap<QLineEdit*, ExpansionInterface::MAX_MEMCARD_SLOT> m_memcard_paths;
+
+  Common::EnumMap<QHBoxLayout*, ExpansionInterface::MAX_MEMCARD_SLOT> m_agp_path_layouts;
+  Common::EnumMap<QLabel*, ExpansionInterface::MAX_MEMCARD_SLOT> m_agp_path_labels;
+  Common::EnumMap<QLineEdit*, ExpansionInterface::MAX_MEMCARD_SLOT> m_agp_paths;
+
+  Common::EnumMap<QVBoxLayout*, ExpansionInterface::MAX_MEMCARD_SLOT> m_gci_path_layouts;
+  Common::EnumMap<QLabel*, ExpansionInterface::MAX_MEMCARD_SLOT> m_gci_path_labels;
+  Common::EnumMap<QLabel*, ExpansionInterface::MAX_MEMCARD_SLOT> m_gci_override_labels;
+  Common::EnumMap<QLineEdit*, ExpansionInterface::MAX_MEMCARD_SLOT> m_gci_paths;
 
   QCheckBox* m_gba_threads;
   QCheckBox* m_gba_save_rom_path;

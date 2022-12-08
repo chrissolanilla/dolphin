@@ -6,7 +6,6 @@ import android.content.Context;
 import android.graphics.Rect;
 import android.os.Bundle;
 import android.view.LayoutInflater;
-import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
@@ -14,11 +13,12 @@ import android.view.ViewGroup;
 import android.widget.Button;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
 import org.dolphinemu.dolphinemu.NativeLibrary;
-import org.dolphinemu.dolphinemu.R;
 import org.dolphinemu.dolphinemu.activities.EmulationActivity;
+import org.dolphinemu.dolphinemu.databinding.FragmentEmulationBinding;
 import org.dolphinemu.dolphinemu.features.settings.model.BooleanSetting;
 import org.dolphinemu.dolphinemu.features.settings.model.Settings;
 import org.dolphinemu.dolphinemu.overlay.InputOverlay;
@@ -30,6 +30,7 @@ public final class EmulationFragment extends Fragment implements SurfaceHolder.C
 {
   private static final String KEY_GAMEPATHS = "gamepaths";
   private static final String KEY_RIIVOLUTION = "riivolution";
+  private static final String KEY_SYSTEM_MENU = "systemMenu";
 
   private InputOverlay mInputOverlay;
 
@@ -37,14 +38,19 @@ public final class EmulationFragment extends Fragment implements SurfaceHolder.C
   private boolean mRiivolution;
   private boolean mRunWhenSurfaceIsValid;
   private boolean mLoadPreviousTemporaryState;
+  private boolean mLaunchSystemMenu;
 
   private EmulationActivity activity;
 
-  public static EmulationFragment newInstance(String[] gamePaths, boolean riivolution)
+  private FragmentEmulationBinding mBinding;
+
+  public static EmulationFragment newInstance(String[] gamePaths, boolean riivolution,
+          boolean systemMenu)
   {
     Bundle args = new Bundle();
     args.putStringArray(KEY_GAMEPATHS, gamePaths);
     args.putBoolean(KEY_RIIVOLUTION, riivolution);
+    args.putBoolean(KEY_SYSTEM_MENU, systemMenu);
 
     EmulationFragment fragment = new EmulationFragment();
     fragment.setArguments(args);
@@ -75,27 +81,29 @@ public final class EmulationFragment extends Fragment implements SurfaceHolder.C
   {
     super.onCreate(savedInstanceState);
 
-    // So this fragment doesn't restart on configuration changes; i.e. rotation.
-    setRetainInstance(true);
-
     mGamePaths = getArguments().getStringArray(KEY_GAMEPATHS);
     mRiivolution = getArguments().getBoolean(KEY_RIIVOLUTION);
+    mLaunchSystemMenu = getArguments().getBoolean(KEY_SYSTEM_MENU);
   }
 
-  /**
-   * Initialize the UI and start emulation in here.
-   */
   @Override
-  public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState)
+  public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container,
+          Bundle savedInstanceState)
   {
-    View contents = inflater.inflate(R.layout.fragment_emulation, container, false);
+    mBinding = FragmentEmulationBinding.inflate(inflater, container, false);
+    return mBinding.getRoot();
+  }
 
-    SurfaceView surfaceView = contents.findViewById(R.id.surface_emulation);
+  @Override
+  public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState)
+  {
+    // The new Surface created here will get passed to the native code via onSurfaceChanged.
+    SurfaceView surfaceView = mBinding.surfaceEmulation;
     surfaceView.getHolder().addCallback(this);
 
-    mInputOverlay = contents.findViewById(R.id.surface_input_overlay);
+    mInputOverlay = mBinding.surfaceInputOverlay;
 
-    Button doneButton = contents.findViewById(R.id.done_control_config);
+    Button doneButton = mBinding.doneControlConfig;
     if (doneButton != null)
     {
       doneButton.setOnClickListener(v -> stopConfiguringControls());
@@ -103,7 +111,7 @@ public final class EmulationFragment extends Fragment implements SurfaceHolder.C
 
     if (mInputOverlay != null)
     {
-      contents.post(() ->
+      view.post(() ->
       {
         int overlayX = mInputOverlay.getLeft();
         int overlayY = mInputOverlay.getTop();
@@ -112,10 +120,13 @@ public final class EmulationFragment extends Fragment implements SurfaceHolder.C
                 surfaceView.getRight() - overlayX, surfaceView.getBottom() - overlayY));
       });
     }
+  }
 
-    // The new Surface created here will get passed to the native code via onSurfaceChanged.
-
-    return contents;
+  @Override
+  public void onDestroyView()
+  {
+    super.onDestroyView();
+    mBinding = null;
   }
 
   @Override
@@ -135,6 +146,15 @@ public final class EmulationFragment extends Fragment implements SurfaceHolder.C
     }
 
     super.onPause();
+  }
+
+  @Override
+  public void onDestroy()
+  {
+    if (mInputOverlay != null)
+      mInputOverlay.onDestroy();
+
+    super.onDestroy();
   }
 
   @Override
@@ -163,6 +183,12 @@ public final class EmulationFragment extends Fragment implements SurfaceHolder.C
   {
     if (mInputOverlay != null)
       mInputOverlay.refreshControls();
+  }
+
+  public void refreshOverlayPointer(Settings settings)
+  {
+    if (mInputOverlay != null)
+      mInputOverlay.refreshOverlayPointer(settings);
   }
 
   public void resetInputOverlay()
@@ -207,7 +233,7 @@ public final class EmulationFragment extends Fragment implements SurfaceHolder.C
   {
     if (mInputOverlay != null)
     {
-      requireView().findViewById(R.id.done_control_config).setVisibility(View.VISIBLE);
+      mBinding.doneControlConfig.setVisibility(View.VISIBLE);
       mInputOverlay.setIsInEditMode(true);
     }
   }
@@ -216,7 +242,7 @@ public final class EmulationFragment extends Fragment implements SurfaceHolder.C
   {
     if (mInputOverlay != null)
     {
-      requireView().findViewById(R.id.done_control_config).setVisibility(View.GONE);
+      mBinding.doneControlConfig.setVisibility(View.GONE);
       mInputOverlay.setIsInEditMode(false);
     }
   }
@@ -272,6 +298,11 @@ public final class EmulationFragment extends Fragment implements SurfaceHolder.C
         {
           Log.debug("[EmulationFragment] Starting emulation thread from previous state.");
           NativeLibrary.Run(mGamePaths, mRiivolution, getTemporaryStateFilePath(), true);
+        }
+        if (mLaunchSystemMenu)
+        {
+          Log.debug("[EmulationFragment] Starting emulation thread for the Wii Menu.");
+          NativeLibrary.RunSystemMenu();
         }
         else
         {

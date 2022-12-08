@@ -2,7 +2,6 @@
 
 package org.dolphinemu.dolphinemu.features.settings.ui;
 
-import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
@@ -10,19 +9,30 @@ import android.os.Bundle;
 import android.provider.Settings;
 import android.view.Menu;
 import android.view.MenuInflater;
-import android.view.MenuItem;
+import android.view.View;
+import android.widget.FrameLayout;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
 import androidx.fragment.app.FragmentTransaction;
 import androidx.lifecycle.ViewModelProvider;
 
+import com.google.android.material.appbar.AppBarLayout;
+import com.google.android.material.appbar.CollapsingToolbarLayout;
+import com.google.android.material.appbar.MaterialToolbar;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+
 import org.dolphinemu.dolphinemu.NativeLibrary;
 import org.dolphinemu.dolphinemu.R;
+import org.dolphinemu.dolphinemu.databinding.ActivitySettingsBinding;
 import org.dolphinemu.dolphinemu.ui.main.MainPresenter;
 import org.dolphinemu.dolphinemu.utils.FileBrowserHelper;
+import org.dolphinemu.dolphinemu.utils.InsetsHelper;
+import org.dolphinemu.dolphinemu.utils.ThemeHelper;
 
 import java.util.Set;
 
@@ -35,7 +45,9 @@ public final class SettingsActivity extends AppCompatActivity implements Setting
   private static final String FRAGMENT_TAG = "settings";
   private SettingsActivityPresenter mPresenter;
 
-  private ProgressDialog dialog;
+  private AlertDialog dialog;
+
+  private CollapsingToolbarLayout mToolbarLayout;
 
   public static void launch(Context context, MenuTag menuTag, String gameId, int revision,
           boolean isWii)
@@ -59,11 +71,21 @@ public final class SettingsActivity extends AppCompatActivity implements Setting
   @Override
   protected void onCreate(Bundle savedInstanceState)
   {
+    ThemeHelper.setTheme(this);
+
     super.onCreate(savedInstanceState);
 
-    MainPresenter.skipRescanningLibrary();
+    // If we came here from the game list, we don't want to rescan when returning to the game list.
+    // But if we came here after UserDataActivity restarted the app, we do want to rescan.
+    if (savedInstanceState == null)
+    {
+      MainPresenter.skipRescanningLibrary();
+    }
 
-    setContentView(R.layout.activity_settings);
+    ActivitySettingsBinding binding = ActivitySettingsBinding.inflate(getLayoutInflater());
+    setContentView(binding.getRoot());
+
+    WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
 
     Intent launcher = getIntent();
     String gameID = launcher.getStringExtra(ARG_GAME_ID);
@@ -75,6 +97,18 @@ public final class SettingsActivity extends AppCompatActivity implements Setting
 
     mPresenter = new SettingsActivityPresenter(this, getSettings());
     mPresenter.onCreate(savedInstanceState, menuTag, gameID, revision, isWii, this);
+
+    mToolbarLayout = binding.toolbarSettingsLayout;
+    setSupportActionBar(binding.toolbarSettings);
+    getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+
+    // TODO: Remove this when CollapsingToolbarLayouts are fixed by Google
+    // https://github.com/material-components/material-components-android/issues/1310
+    ViewCompat.setOnApplyWindowInsetsListener(mToolbarLayout, null);
+
+    InsetsHelper.setUpSettingsLayout(this, binding.appbarSettings, binding.frameContentSettings,
+            binding.workaroundView);
+    ThemeHelper.enableScrollTint(this, binding.toolbarSettings, binding.appbarSettings);
   }
 
   @Override
@@ -84,12 +118,6 @@ public final class SettingsActivity extends AppCompatActivity implements Setting
     inflater.inflate(R.menu.menu_settings, menu);
 
     return true;
-  }
-
-  @Override
-  public boolean onOptionsItemSelected(MenuItem item)
-  {
-    return mPresenter.handleOptionsItem(item.getItemId());
   }
 
   @Override
@@ -147,8 +175,8 @@ public final class SettingsActivity extends AppCompatActivity implements Setting
 
       transaction.addToBackStack(null);
     }
-    transaction.replace(R.id.frame_content, SettingsFragment.newInstance(menuTag, gameID, extras),
-            FRAGMENT_TAG);
+    transaction.replace(R.id.frame_content_settings,
+            SettingsFragment.newInstance(menuTag, gameID, extras), FRAGMENT_TAG);
 
     transaction.commit();
   }
@@ -210,11 +238,12 @@ public final class SettingsActivity extends AppCompatActivity implements Setting
   {
     if (dialog == null)
     {
-      dialog = new ProgressDialog(this);
-      dialog.setMessage(getString(R.string.load_settings));
-      dialog.setIndeterminate(true);
+      dialog = new MaterialAlertDialogBuilder(this)
+              .setTitle(getString(R.string.load_settings))
+              .setView(getLayoutInflater().inflate(R.layout.dialog_indeterminate_progress, null,
+                      false))
+              .create();
     }
-
     dialog.show();
   }
 
@@ -227,7 +256,7 @@ public final class SettingsActivity extends AppCompatActivity implements Setting
   @Override
   public void showGameIniJunkDeletionQuestion()
   {
-    new AlertDialog.Builder(this, R.style.DolphinDialogBase)
+    new MaterialAlertDialogBuilder(this)
             .setTitle(getString(R.string.game_ini_junk_title))
             .setMessage(getString(R.string.game_ini_junk_question))
             .setPositiveButton(R.string.yes, (dialogInterface, i) -> mPresenter.clearSettings())
@@ -277,6 +306,12 @@ public final class SettingsActivity extends AppCompatActivity implements Setting
   }
 
   @Override
+  public void onSerialPort1SettingChanged(MenuTag menuTag, int value)
+  {
+    mPresenter.onSerialPort1SettingChanged(menuTag, value);
+  }
+
+  @Override
   public void onGcPadSettingChanged(MenuTag key, int value)
   {
     mPresenter.onGcPadSettingChanged(key, value);
@@ -294,8 +329,20 @@ public final class SettingsActivity extends AppCompatActivity implements Setting
     mPresenter.onExtensionSettingChanged(menuTag, value);
   }
 
+  @Override
+  public boolean onSupportNavigateUp()
+  {
+    onBackPressed();
+    return true;
+  }
+
   private SettingsFragment getFragment()
   {
     return (SettingsFragment) getSupportFragmentManager().findFragmentByTag(FRAGMENT_TAG);
+  }
+
+  public void setToolbarTitle(String title)
+  {
+    mToolbarLayout.setTitle(title);
   }
 }

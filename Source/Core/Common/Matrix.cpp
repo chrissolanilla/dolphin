@@ -3,10 +3,10 @@
 
 #include "Common/Matrix.h"
 
-#include "Common/MathUtil.h"
-
 #include <algorithm>
 #include <cmath>
+
+#include "Common/MathUtil.h"
 
 namespace
 {
@@ -78,7 +78,7 @@ Quaternion::Quaternion(float w, float x, float y, float z) : data(x, y, z, w)
 
 float Quaternion::Norm() const
 {
-  return data.Dot(data);
+  return std::sqrt(data.Dot(data));
 }
 
 Quaternion Quaternion::Normalized() const

@@ -1,14 +1,16 @@
 // Copyright 2014 Dolphin Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include "Core/PowerPC/JitArm64/Jit.h"
+
 #include "Common/Arm64Emitter.h"
 #include "Common/Assert.h"
 #include "Common/BitUtils.h"
 #include "Common/CommonTypes.h"
+#include "Common/MathUtil.h"
 
 #include "Core/Core.h"
 #include "Core/CoreTiming.h"
-#include "Core/PowerPC/JitArm64/Jit.h"
 #include "Core/PowerPC/JitArm64/JitArm64_RegCache.h"
 #include "Core/PowerPC/JitCommon/DivUtils.h"
 #include "Core/PowerPC/PPCTables.h"
@@ -318,6 +320,98 @@ void JitArm64::boolX(UGeckoInstruction inst)
       PanicAlertFmt("WTF!");
     }
   }
+  else if ((gpr.IsImm(s) && (gpr.GetImm(s) == 0 || gpr.GetImm(s) == 0xFFFFFFFF)) ||
+           (gpr.IsImm(b) && (gpr.GetImm(b) == 0 || gpr.GetImm(b) == 0xFFFFFFFF)))
+  {
+    const auto [i, j] = gpr.IsImm(s) ? std::pair(s, b) : std::pair(b, s);
+    bool is_zero = gpr.GetImm(i) == 0;
+
+    bool complement_b = (inst.SUBOP10 == 60 /* andcx */) || (inst.SUBOP10 == 412 /* orcx */);
+    const bool final_not = (inst.SUBOP10 == 476 /* nandx */) || (inst.SUBOP10 == 124 /* norx */);
+    const bool is_and = (inst.SUBOP10 == 28 /* andx */) || (inst.SUBOP10 == 60 /* andcx */) ||
+                        (inst.SUBOP10 == 476 /* nandx */);
+    const bool is_or = (inst.SUBOP10 == 444 /* orx */) || (inst.SUBOP10 == 412 /* orcx */) ||
+                       (inst.SUBOP10 == 124 /* norx */);
+    const bool is_xor = (inst.SUBOP10 == 316 /* xorx */) || (inst.SUBOP10 == 284 /* eqvx */);
+
+    if ((complement_b && i == b) || (inst.SUBOP10 == 284 /* eqvx */))
+    {
+      is_zero = !is_zero;
+      complement_b = false;
+    }
+
+    if (is_xor)
+    {
+      if (!is_zero)
+      {
+        gpr.BindToRegister(a, a == j);
+        MVN(gpr.R(a), gpr.R(j));
+      }
+      else if (a != j)
+      {
+        gpr.BindToRegister(a, false);
+        MOV(gpr.R(a), gpr.R(j));
+      }
+      if (inst.Rc)
+        ComputeRC0(gpr.R(a));
+    }
+    else if (is_and)
+    {
+      if (is_zero)
+      {
+        gpr.SetImmediate(a, final_not ? 0xFFFFFFFF : 0);
+        if (inst.Rc)
+          ComputeRC0(gpr.GetImm(a));
+      }
+      else if (final_not || complement_b)
+      {
+        gpr.BindToRegister(a, a == j);
+        MVN(gpr.R(a), gpr.R(j));
+        if (inst.Rc)
+          ComputeRC0(gpr.R(a));
+      }
+      else
+      {
+        if (a != j)
+        {
+          gpr.BindToRegister(a, false);
+          MOV(gpr.R(a), gpr.R(j));
+        }
+        if (inst.Rc)
+          ComputeRC0(gpr.R(a));
+      }
+    }
+    else if (is_or)
+    {
+      if (!is_zero)
+      {
+        gpr.SetImmediate(a, final_not ? 0 : 0xFFFFFFFF);
+        if (inst.Rc)
+          ComputeRC0(gpr.GetImm(a));
+      }
+      else if (final_not || complement_b)
+      {
+        gpr.BindToRegister(a, a == j);
+        MVN(gpr.R(a), gpr.R(j));
+        if (inst.Rc)
+          ComputeRC0(gpr.R(a));
+      }
+      else
+      {
+        if (a != j)
+        {
+          gpr.BindToRegister(a, false);
+          MOV(gpr.R(a), gpr.R(j));
+        }
+        if (inst.Rc)
+          ComputeRC0(gpr.R(a));
+      }
+    }
+    else
+    {
+      PanicAlertFmt("WTF!");
+    }
+  }
   else
   {
     gpr.BindToRegister(a, (a == s) || (a == b));
@@ -383,9 +477,11 @@ void JitArm64::addx(UGeckoInstruction inst)
   {
     int imm_reg = gpr.IsImm(a) ? a : b;
     int in_reg = gpr.IsImm(a) ? b : a;
+    int imm_value = gpr.GetImm(imm_reg);
+
     gpr.BindToRegister(d, d == in_reg);
     ARM64Reg WA = gpr.GetReg();
-    ADDI2R(gpr.R(d), gpr.R(in_reg), gpr.GetImm(imm_reg), WA);
+    ADDI2R(gpr.R(d), gpr.R(in_reg), imm_value, WA);
     gpr.Unlock(WA);
     if (inst.Rc)
       ComputeRC0(gpr.R(d));
@@ -483,25 +579,29 @@ void JitArm64::cmp(UGeckoInstruction inst)
     s64 A = static_cast<s32>(gpr.GetImm(a));
     s64 B = static_cast<s32>(gpr.GetImm(b));
     MOVI2R(CR, A - B);
-    return;
   }
-
-  if (gpr.IsImm(b) && !gpr.GetImm(b))
+  else if (gpr.IsImm(a) && !gpr.GetImm(a))
+  {
+    NEG(EncodeRegTo32(CR), gpr.R(b));
+    SXTW(CR, EncodeRegTo32(CR));
+  }
+  else if (gpr.IsImm(a) && gpr.GetImm(a) == 0xFFFFFFFF)
+  {
+    MVN(EncodeRegTo32(CR), gpr.R(b));
+    SXTW(CR, EncodeRegTo32(CR));
+  }
+  else if (gpr.IsImm(b) && !gpr.GetImm(b))
   {
     SXTW(CR, gpr.R(a));
-    return;
   }
+  else
+  {
+    ARM64Reg RA = gpr.R(a);
+    ARM64Reg RB = gpr.R(b);
 
-  ARM64Reg WA = gpr.GetReg();
-  ARM64Reg XA = EncodeRegTo64(WA);
-  ARM64Reg RA = gpr.R(a);
-  ARM64Reg RB = gpr.R(b);
-
-  SXTW(XA, RA);
-  SXTW(CR, RB);
-  SUB(CR, XA, CR);
-
-  gpr.Unlock(WA);
+    SXTW(CR, RA);
+    SUB(CR, CR, RB, ArithOption(RB, ExtendSpecifier::SXTW));
+  }
 }
 
 void JitArm64::cmpl(UGeckoInstruction inst)
@@ -520,16 +620,19 @@ void JitArm64::cmpl(UGeckoInstruction inst)
     u64 A = gpr.GetImm(a);
     u64 B = gpr.GetImm(b);
     MOVI2R(CR, A - B);
-    return;
   }
-
-  if (gpr.IsImm(b) && !gpr.GetImm(b))
+  else if (gpr.IsImm(a) && !gpr.GetImm(a))
+  {
+    NEG(CR, EncodeRegTo64(gpr.R(b)));
+  }
+  else if (gpr.IsImm(b) && !gpr.GetImm(b))
   {
     MOV(EncodeRegTo32(CR), gpr.R(a));
-    return;
   }
-
-  SUB(gpr.CR(crf), EncodeRegTo64(gpr.R(a)), EncodeRegTo64(gpr.R(b)));
+  else
+  {
+    SUB(CR, EncodeRegTo64(gpr.R(a)), EncodeRegTo64(gpr.R(b)));
+  }
 }
 
 void JitArm64::cmpi(UGeckoInstruction inst)
@@ -652,11 +755,11 @@ void JitArm64::rlwnmx(UGeckoInstruction inst)
   }
   else if (gpr.IsImm(b))
   {
+    int imm_value = gpr.GetImm(b) & 0x1f;
     gpr.BindToRegister(a, a == s);
     ARM64Reg WA = gpr.GetReg();
-    ArithOption Shift(gpr.R(s), ShiftType::ROR, 32 - (gpr.GetImm(b) & 0x1f));
     MOVI2R(WA, mask);
-    AND(gpr.R(a), WA, gpr.R(s), Shift);
+    AND(gpr.R(a), WA, gpr.R(s), ArithOption(gpr.R(s), ShiftType::ROR, 32 - imm_value));
     gpr.Unlock(WA);
     if (inst.Rc)
       ComputeRC0(gpr.R(a));
@@ -781,6 +884,75 @@ void JitArm64::addic(UGeckoInstruction inst)
   }
 }
 
+bool JitArm64::MultiplyImmediate(u32 imm, int a, int d, bool rc)
+{
+  if (imm == 0)
+  {
+    // Multiplication by zero (0).
+    gpr.SetImmediate(d, 0);
+    if (rc)
+      ComputeRC0(gpr.GetImm(d));
+  }
+  else if (imm == 1)
+  {
+    // Multiplication by one (1).
+    if (d != a)
+    {
+      gpr.BindToRegister(d, false);
+      MOV(gpr.R(d), gpr.R(a));
+    }
+    if (rc)
+      ComputeRC0(gpr.R(d));
+  }
+  else if (MathUtil::IsPow2(imm))
+  {
+    // Multiplication by a power of two (2^n).
+    const int shift = IntLog2(imm);
+
+    gpr.BindToRegister(d, d == a);
+    LSL(gpr.R(d), gpr.R(a), shift);
+    if (rc)
+      ComputeRC0(gpr.R(d));
+  }
+  else if (MathUtil::IsPow2(imm - 1))
+  {
+    // Multiplication by a power of two plus one (2^n + 1).
+    const int shift = IntLog2(imm - 1);
+
+    gpr.BindToRegister(d, d == a);
+    ADD(gpr.R(d), gpr.R(a), gpr.R(a), ArithOption(gpr.R(a), ShiftType::LSL, shift));
+    if (rc)
+      ComputeRC0(gpr.R(d));
+  }
+  else if (MathUtil::IsPow2(~imm + 1))
+  {
+    // Multiplication by a negative power of two (-(2^n)).
+    const int shift = IntLog2(~imm + 1);
+
+    gpr.BindToRegister(d, d == a);
+    NEG(gpr.R(d), gpr.R(a), ArithOption(gpr.R(a), ShiftType::LSL, shift));
+    if (rc)
+      ComputeRC0(gpr.R(d));
+  }
+  else if (MathUtil::IsPow2(~imm + 2))
+  {
+    // Multiplication by a negative power of two plus one (-(2^n) + 1).
+    const int shift = IntLog2(~imm + 2);
+
+    gpr.BindToRegister(d, d == a);
+    SUB(gpr.R(d), gpr.R(a), gpr.R(a), ArithOption(gpr.R(a), ShiftType::LSL, shift));
+    if (rc)
+      ComputeRC0(gpr.R(d));
+  }
+  else
+  {
+    // Immediate did not match any known special cases.
+    return false;
+  }
+
+  return true;
+}
+
 void JitArm64::mulli(UGeckoInstruction inst)
 {
   INSTRUCTION_START
@@ -793,13 +965,22 @@ void JitArm64::mulli(UGeckoInstruction inst)
     s32 i = (s32)gpr.GetImm(a);
     gpr.SetImmediate(d, i * inst.SIMM_16);
   }
+  else if (MultiplyImmediate((u32)(s32)inst.SIMM_16, a, d, false))
+  {
+    // Code is generated inside MultiplyImmediate, nothing to be done here.
+  }
   else
   {
-    gpr.BindToRegister(d, d == a);
-    ARM64Reg WA = gpr.GetReg();
+    const bool allocate_reg = d == a;
+    gpr.BindToRegister(d, allocate_reg);
+
+    // Reuse d to hold the immediate if possible, allocate a register otherwise.
+    ARM64Reg WA = allocate_reg ? gpr.GetReg() : gpr.R(d);
+
     MOVI2R(WA, (u32)(s32)inst.SIMM_16);
     MUL(gpr.R(d), gpr.R(a), WA);
-    gpr.Unlock(WA);
+    if (allocate_reg)
+      gpr.Unlock(WA);
   }
 }
 
@@ -817,6 +998,11 @@ void JitArm64::mullwx(UGeckoInstruction inst)
     gpr.SetImmediate(d, i * j);
     if (inst.Rc)
       ComputeRC0(gpr.GetImm(d));
+  }
+  else if ((gpr.IsImm(a) && MultiplyImmediate(gpr.GetImm(a), b, d, inst.Rc)) ||
+           (gpr.IsImm(b) && MultiplyImmediate(gpr.GetImm(b), a, d, inst.Rc)))
+  {
+    // Code is generated inside MultiplyImmediate, nothing to be done here.
   }
   else
   {
@@ -1340,7 +1526,7 @@ void JitArm64::divwx(UGeckoInstruction inst)
   {
     const u32 dividend = gpr.GetImm(a);
 
-    gpr.BindToRegister(d, d == b);
+    gpr.BindToRegister(d, d == a || d == b);
 
     ARM64Reg RB = gpr.R(b);
     ARM64Reg RD = gpr.R(d);

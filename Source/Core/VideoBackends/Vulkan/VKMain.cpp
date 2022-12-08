@@ -1,6 +1,8 @@
 // Copyright 2016 Dolphin Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include "VideoBackends/Vulkan/VideoBackend.h"
+
 #include <vector>
 
 #include "Common/Logging/LogManager.h"
@@ -14,7 +16,6 @@
 #include "VideoBackends/Vulkan/VKRenderer.h"
 #include "VideoBackends/Vulkan/VKSwapChain.h"
 #include "VideoBackends/Vulkan/VKVertexManager.h"
-#include "VideoBackends/Vulkan/VideoBackend.h"
 #include "VideoBackends/Vulkan/VulkanContext.h"
 
 #include "VideoCommon/FramebufferManager.h"
@@ -34,8 +35,9 @@ void VideoBackend::InitBackendInfo()
 
   if (LoadVulkanLibrary())
   {
-    VkInstance temp_instance =
-        VulkanContext::CreateVulkanInstance(WindowSystemType::Headless, false, false);
+    u32 vk_api_version = 0;
+    VkInstance temp_instance = VulkanContext::CreateVulkanInstance(WindowSystemType::Headless,
+                                                                   false, false, &vk_api_version);
     if (temp_instance)
     {
       if (LoadVulkanInstanceFunctions(temp_instance))
@@ -113,8 +115,9 @@ bool VideoBackend::Initialize(const WindowSystemInfo& wsi)
   // We use this instance to fill in backend info, then re-use it for the actual device.
   bool enable_surface = wsi.type != WindowSystemType::Headless;
   bool enable_debug_reports = ShouldEnableDebugReports(enable_validation_layer);
-  VkInstance instance =
-      VulkanContext::CreateVulkanInstance(wsi.type, enable_debug_reports, enable_validation_layer);
+  u32 vk_api_version = 0;
+  VkInstance instance = VulkanContext::CreateVulkanInstance(
+      wsi.type, enable_debug_reports, enable_validation_layer, &vk_api_version);
   if (instance == VK_NULL_HANDLE)
   {
     PanicAlertFmt("Failed to create Vulkan instance.");
@@ -170,8 +173,9 @@ bool VideoBackend::Initialize(const WindowSystemInfo& wsi)
   }
 
   // Now we can create the Vulkan device. VulkanContext takes ownership of the instance and surface.
-  g_vulkan_context = VulkanContext::Create(instance, gpu_list[selected_adapter_index], surface,
-                                           enable_debug_reports, enable_validation_layer);
+  g_vulkan_context =
+      VulkanContext::Create(instance, gpu_list[selected_adapter_index], surface,
+                            enable_debug_reports, enable_validation_layer, vk_api_version);
   if (!g_vulkan_context)
   {
     PanicAlertFmt("Failed to create Vulkan device");
@@ -279,30 +283,6 @@ void VideoBackend::Shutdown()
   UnloadVulkanLibrary();
 }
 
-#if defined(VK_USE_PLATFORM_METAL_EXT)
-static bool IsRunningOnMojaveOrHigher()
-{
-  // id processInfo = [NSProcessInfo processInfo]
-  id processInfo = reinterpret_cast<id (*)(Class, SEL)>(objc_msgSend)(
-      objc_getClass("NSProcessInfo"), sel_getUid("processInfo"));
-  if (!processInfo)
-    return false;
-
-  struct OSVersion  // NSOperatingSystemVersion
-  {
-    size_t major_version;  // NSInteger majorVersion
-    size_t minor_version;  // NSInteger minorVersion
-    size_t patch_version;  // NSInteger patchVersion
-  };
-
-  // const bool meets_requirement = [processInfo isOperatingSystemAtLeastVersion:required_version];
-  constexpr OSVersion required_version = {10, 14, 0};
-  const bool meets_requirement = reinterpret_cast<bool (*)(id, SEL, OSVersion)>(objc_msgSend)(
-      processInfo, sel_getUid("isOperatingSystemAtLeastVersion:"), required_version);
-  return meets_requirement;
-}
-#endif
-
 void VideoBackend::PrepareWindow(WindowSystemInfo& wsi)
 {
 #if defined(VK_USE_PLATFORM_METAL_EXT)
@@ -344,17 +324,6 @@ void VideoBackend::PrepareWindow(WindowSystemInfo& wsi)
 
   // Store the layer pointer, that way MoltenVK doesn't call [NSView layer] outside the main thread.
   wsi.render_surface = layer;
-
-  // The Metal version included with MacOS 10.13 and below does not support several features we
-  // require. Furthermore, the drivers seem to choke on our shaders (mainly Intel). So, we warn
-  // the user that this is an unsupported configuration, but permit them to continue.
-  if (!IsRunningOnMojaveOrHigher())
-  {
-    PanicAlertFmtT(
-        "You are attempting to use the Vulkan (Metal) backend on an unsupported operating system. "
-        "For all functionality to be enabled, you must use macOS 10.14 (Mojave) or newer. Please "
-        "do not report any issues encountered unless they also occur on 10.14+.");
-  }
 #endif
 }
 }  // namespace Vulkan
