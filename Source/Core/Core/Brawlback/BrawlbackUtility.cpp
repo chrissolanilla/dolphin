@@ -6,16 +6,6 @@
 
 namespace Brawlback
 {
-    void ResetRollbackInfo(RollbackInfo& rollbackInfo)
-    {
-      rollbackInfo.isUsingPredictedInputs = false;
-      rollbackInfo.beginFrame = 0;
-      rollbackInfo.endFrame = 0;
-      rollbackInfo.predictedInputs = FrameData();
-      rollbackInfo.pastFrameDataPopulated = false;
-      memset(rollbackInfo.pastFrameDatas, 0, sizeof(FrameData) * MAX_ROLLBACK_FRAMES);
-      rollbackInfo.hasPreserveBlocks = false;
-    }
 
     bool isButtonPressed(u16 buttonBits, PADButtonBits button)
     {
@@ -80,7 +70,7 @@ namespace Brawlback
             if (frame >= begin && frame <= end) {
                 int idx = frame - begin;
                 ASSERT(idx >= 0 && idx < queue.size());
-                Match::PlayerFrameData* framedata = queue[idx].get();
+                PlayerFrameData* framedata = queue[idx].get();
                 ASSERT(framedata->frame == frame);
                 ret = framedata;
             }
@@ -105,13 +95,17 @@ namespace Brawlback
             //bool frames = p1.frame == p2.frame;
             //bool idxs = p1.playerIdx == p2.playerIdx;
             bool buttons = p1.pad.buttons == p2.pad.buttons;
+            bool holdButtons = p1.pad.holdButtons == p2.pad.holdButtons;
+            bool rapidFireButtons = p1.pad.rapidFireButtons == p2.pad.rapidFireButtons;
+            bool releasedButtons = p1.pad.releasedButtons == p2.pad.releasedButtons;
+            bool newPressedButtons = p1.pad.newPressedButtons == p2.pad.newPressedButtons;
             bool sticks = p1.pad.stickX == p2.pad.stickX &&
                           p1.pad.stickY == p2.pad.stickY &&
                           p1.pad.cStickX == p2.pad.cStickX &&
                           p1.pad.cStickY == p2.pad.cStickY;
             bool triggers = p1.pad.LTrigger == p2.pad.LTrigger &&
                             p1.pad.RTrigger == p2.pad.RTrigger;
-            return buttons && sticks && triggers;
+            return buttons && holdButtons && rapidFireButtons && releasedButtons && newPressedButtons && sticks && triggers;
         }
 
     }
@@ -189,42 +183,36 @@ namespace Brawlback
             if (!msg.empty()) {
                 std::fstream synclogFile;
                 File::OpenFStream(synclogFile, getSyncLogFilePath(), std::ios_base::out | std::ios_base::app);
-                synclogFile << "[Sync] " << msg << "[/Sync]\n";
+                synclogFile << msg << "\n";
                 synclogFile.close();
             }
+        }
+
+        std::string stringifyPad(const BrawlbackPad& pad) {
+            std::string inputs;
+
+            std::string sticks = "[StickX: " + std::to_string(pad.stickX) + "] [StickY: " + std::to_string(pad.stickY) + "]\n";
+            inputs.append(sticks);
+            
+            std::string csticks = "[CStickX: " + std::to_string(pad.cStickX) + "] [CStickY: " + std::to_string(pad.cStickY) + "]\n";
+            inputs.append(csticks);
+            
+            std::string triggers = "[LTrigger: " + std::to_string(pad.LTrigger) + "] [RTrigger: " + std::to_string(pad.RTrigger) + "]\n";
+            inputs.append(triggers);
+            
+            std::string buttons = "[Buttons: " + str_half(pad.buttons) + "]\n";
+            inputs.append(buttons);
+            return inputs;
         }
 
         std::string Sync::stringifyFramedata(const PlayerFrameData& pfd) {
             std::string ret;
 
             std::string info;
-            info.append("[Frame " + std::to_string(pfd.frame) + "] [P" +
-                        std::to_string(pfd.playerIdx + 1) + "]\n");
-
-
-            std::string inputs;
-
-            std::string sticks =
-                "[StickX: " + std::to_string((int)pfd.pad.stickX) +
-                "] [StickY: " + std::to_string((int)pfd.pad.stickY) + "]\n";
-            inputs.append(sticks);
-            
-            std::string csticks =
-                "[CStickX: " + std::to_string((int)pfd.pad.cStickX) +
-                "] [CStickY: " + std::to_string((int)pfd.pad.cStickY) + "]\n";
-            inputs.append(csticks);
-            
-            std::string triggers =
-                "[LTrigger: " + std::to_string((int)pfd.pad.LTrigger) +
-                "] [RTrigger: " + std::to_string((int)pfd.pad.RTrigger) + "]\n";
-            inputs.append(triggers);
-            
-            std::string buttons = "[Buttons: " + str_half(pfd.pad.buttons) + "\n";
-            inputs.append(buttons);
-
+            info.append("[Frame " + std::to_string(pfd.frame) + "] [P" + std::to_string(pfd.playerIdx) + "]\n");
 
             ret.append(info);
-            ret.append(inputs);
+            ret.append(stringifyPad(pfd.pad));
             return ret;
         }
 
