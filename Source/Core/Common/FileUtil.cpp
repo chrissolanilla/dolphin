@@ -37,6 +37,8 @@
 #include <io.h>
 #include <objbase.h>  // guid stuff
 #include <shellapi.h>
+#include <winerror.h>
+#include <ShlObj.h>
 #else
 #include <dirent.h>
 #include <errno.h>
@@ -863,6 +865,33 @@ std::string GetExeDirectory()
 #endif
 }
 
+std::string GetHomeDirectory()
+{
+  std::string homeDir;
+  #ifdef _WIN32
+    wchar_t* path = nullptr;
+
+    if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_Documents, 0, nullptr, &path)))
+    {
+      size_t len = std::wcslen(path);
+      std::u16string pathu16;
+      pathu16.reserve(len);
+      std::copy(path, path + len, std::back_inserter(pathu16));
+      homeDir = UTF16ToUTF8(pathu16);
+    }
+    else
+    {
+      const char* home = getenv("USERPROFILE");
+      homeDir = std::string(home) + "\\Documents";
+    }
+  #else
+    const char* home = getenv("HOME");
+    homeDir = std::string(home);
+  #endif
+
+  return homeDir;
+}
+
 static std::string CreateSysDirectoryPath()
 {
 #if defined(_WIN32) || defined(LINUX_LOCAL_DEV)
@@ -876,7 +905,6 @@ static std::string CreateSysDirectoryPath()
 #define SYSDATA_DIR "sys"
 #endif
 #endif
-
 #if defined(__APPLE__)
   const std::string sys_directory = GetBundleDirectory() + DIR_SEP SYSDATA_DIR DIR_SEP;
 #elif defined(_WIN32) || defined(LINUX_LOCAL_DEV)
