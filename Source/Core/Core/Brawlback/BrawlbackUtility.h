@@ -135,7 +135,10 @@ namespace Brawlback {
     }
 
     inline void PrintSyncData(const SyncData& data) {
-        INFO_LOG(BRAWLBACK, "xPos = %f  yPos = %f  facingDir = %i  anim = %u  percent = %f  stocks = %i\n", data.locX, data.locY, (s32)data.facingDir, data.anim, data.percent, (u32)data.stocks);
+        INFO_LOG_FMT(
+            BRAWLBACK,
+            "xPos = {}  yPos = {}  facingDir = {}  anim = {}  percent = {}  stocks = {}\n",
+            data.locX, data.locY, (s32)data.facingDir, data.anim, data.percent, (u32)data.stocks);
     }
 
     // checks if the specified `button` is held down based on the buttonBits bitfield

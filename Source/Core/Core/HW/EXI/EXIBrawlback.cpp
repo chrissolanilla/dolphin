@@ -617,7 +617,7 @@ void CEXIBrawlback::handleSendInputs(u32 frame)
   int minAckFrame = this->timeSync->getMinAckFrame(this->numPlayers);
 
   // clamp to current frame to prevent it dropping local inputs that haven't been used yet
-  minAckFrame = MIN(minAckFrame, frame);
+  minAckFrame = MIN<u32>(minAckFrame, frame);
 
   int localPadQueueSize = (int)this->localPlayerFrameData.size();
   if (localPadQueueSize == 0)
