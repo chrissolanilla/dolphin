@@ -51,7 +51,7 @@ std::vector<u8> read_vector_from_disk(std::string file_path)
 
 CEXIBrawlback::CEXIBrawlback()
 {
-  INFO_LOG_FMT(BRAWLBACK, "------- {}\n", SConfig::GetInstance().GetGameID().c_str());
+  INFO_LOG_FMT(BRAWLBACK, "------- {}\n", SConfig::GetInstance().GetGameID());
 #ifdef _WIN32
   if (std::filesystem::exists(Sync::getSyncLogFilePath()))
   {
@@ -975,7 +975,7 @@ void CEXIBrawlback::NetplayThreadFunc()
       INFO_LOG_FMT(BRAWLBACK, "Connected!");
       if (event.peer)
       {
-        INFO_LOG_FMT(BRAWLBACK, "A new client connected from {}:{}\n", event.peer->address.host,
+        INFO_LOG_FMT(BRAWLBACK, "A new client connected from {:#x}:{:d}\n", event.peer->address.host,
                  event.peer->address.port);
         this->isConnected = true;
       }

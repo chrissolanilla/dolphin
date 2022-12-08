@@ -208,7 +208,8 @@ void SConfig::LoadDefaults()
 {
   bAutomaticStart = false;
   bBootToPause = false;
-
+  const auto default_replay_dir = File::GetHomeDirectory() + CROSS_PLAT_DIR_SEP + "Brawlback";
+  m_brawlbackReplayDir = default_replay_dir;
   bWii = false;
 
   ResetRunningGameMetadata();

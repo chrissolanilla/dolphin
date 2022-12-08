@@ -81,7 +81,7 @@ std::unique_ptr<IEXIDevice> EXIDevice_Create(EXIDeviceType device_type, int chan
 
 template <>
 struct fmt::formatter<ExpansionInterface::EXIDeviceType>
-    : EnumFormatter<ExpansionInterface::EXIDeviceType::EthernetBuiltIn>
+    : EnumFormatter<ExpansionInterface::EXIDeviceType::Brawlback>
 {
   static constexpr array_type names = {
       _trans("Dummy"),
@@ -98,6 +98,7 @@ struct fmt::formatter<ExpansionInterface::EXIDeviceType>
       _trans("Broadband Adapter (XLink Kai)"),
       _trans("Broadband Adapter (tapserver)"),
       _trans("Broadband Adapter (HLE)"),
+      _trans("Brawlback")
   };
 
   constexpr formatter() : EnumFormatter(names) {}

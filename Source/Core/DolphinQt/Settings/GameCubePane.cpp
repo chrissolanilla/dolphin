@@ -42,23 +42,6 @@
 #include "DolphinQt/Settings.h"
 #include "DolphinQt/Settings/BroadbandAdapterSettingsDialog.h"
 
-namespace
-{
-  // For brawlback branch we do not need to modify the setting for exi device [1], which was slot B
-  // in the menu. So the control to update this setting is removed entirely.
-  // Now we have a different # of slot controls to actual exi devides, so use this to map to exi
-  // settings index
-  std::array<size_t, 2> kSlotToExiIndex = {0, 2};
-}  // namespace
-
-enum
-{
-  SLOT_A_INDEX,
-  SLOT_B_INDEX,
-  SLOT_SP1_INDEX,
-  SLOT_COUNT
-};
-
 GameCubePane::GameCubePane()
 {
   CreateWidgets();
@@ -104,14 +87,17 @@ void GameCubePane::CreateWidgets()
 
   for (ExpansionInterface::Slot slot : ExpansionInterface::SLOTS)
   {
-    m_slot_combos[slot] = new QComboBox(device_box);
-    m_slot_combos[slot]->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
-    m_slot_buttons[slot] = new NonDefaultQPushButton(tr("..."), device_box);
-    m_slot_buttons[slot]->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    if (slot != ExpansionInterface::Slot::B)
+    {
+      m_slot_combos[slot] = new QComboBox(device_box);
+      m_slot_combos[slot]->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
+      m_slot_buttons[slot] = new NonDefaultQPushButton(tr("..."), device_box);
+      m_slot_buttons[slot]->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    }
   }
 
-  for (ExpansionInterface::Slot slot : ExpansionInterface::MEMCARD_SLOTS)
   {
+    auto slot = ExpansionInterface::Slot::A;
     m_memcard_path_layouts[slot] = new QHBoxLayout();
     m_memcard_path_labels[slot] = new QLabel(tr("Memory Card Path:"));
     m_memcard_paths[slot] = new QLineEdit();
@@ -142,12 +128,11 @@ void GameCubePane::CreateWidgets()
   // Add slot devices
   for (const auto device : {EXIDeviceType::None, EXIDeviceType::Dummy, EXIDeviceType::MemoryCard,
                             EXIDeviceType::MemoryCardFolder, EXIDeviceType::Gecko,
-                            EXIDeviceType::AGP, EXIDeviceType::Microphone})
+                            EXIDeviceType::AGP, EXIDeviceType::Microphone, EXIDeviceType::Brawlback})
   {
     const QString name = tr(fmt::format("{:n}", device).c_str());
     const int value = static_cast<int>(device);
     m_slot_combos[ExpansionInterface::Slot::A]->addItem(name, value);
-    m_slot_combos[ExpansionInterface::Slot::B]->addItem(name, value);
   }
 
   // Add SP1 devices
@@ -159,7 +144,7 @@ void GameCubePane::CreateWidgets()
 #ifdef __APPLE__
            EXIDeviceType::EthernetTapServer,
 #endif
-           EXIDeviceType::EthernetBuiltIn,
+           EXIDeviceType::EthernetBuiltIn
        })
   {
     m_slot_combos[ExpansionInterface::Slot::SP1]->addItem(tr(fmt::format("{:n}", device).c_str()),
@@ -180,20 +165,6 @@ void GameCubePane::CreateWidgets()
 
     ++row;
     device_layout->addLayout(m_gci_path_layouts[ExpansionInterface::Slot::A], row, 0, 1, 3);
-
-    ++row;
-    device_layout->addWidget(new QLabel(tr("Slot B:")), row, 0);
-    device_layout->addWidget(m_slot_combos[ExpansionInterface::Slot::B], row, 1);
-    device_layout->addWidget(m_slot_buttons[ExpansionInterface::Slot::B], row, 2);
-
-    ++row;
-    device_layout->addLayout(m_memcard_path_layouts[ExpansionInterface::Slot::B], row, 0, 1, 3);
-
-    ++row;
-    device_layout->addLayout(m_agp_path_layouts[ExpansionInterface::Slot::B], row, 0, 1, 3);
-
-    ++row;
-    device_layout->addLayout(m_gci_path_layouts[ExpansionInterface::Slot::B], row, 0, 1, 3);
 
     ++row;
     device_layout->addWidget(new QLabel(tr("SP1:")), row, 0);
@@ -262,15 +233,18 @@ void GameCubePane::ConnectWidgets()
   // Device Settings
   for (ExpansionInterface::Slot slot : ExpansionInterface::SLOTS)
   {
-    connect(m_slot_combos[slot], qOverload<int>(&QComboBox::currentIndexChanged), this,
-            [this, slot] { UpdateButton(slot); });
-    connect(m_slot_combos[slot], qOverload<int>(&QComboBox::currentIndexChanged), this,
-            &GameCubePane::SaveSettings);
-    connect(m_slot_buttons[slot], &QPushButton::clicked, [this, slot] { OnConfigPressed(slot); });
+    if (slot != ExpansionInterface::Slot::B)
+    {
+      connect(m_slot_combos[slot], qOverload<int>(&QComboBox::currentIndexChanged), this,
+              [this, slot] { UpdateButton(slot); });
+      connect(m_slot_combos[slot], qOverload<int>(&QComboBox::currentIndexChanged), this,
+              &GameCubePane::SaveSettings);
+      connect(m_slot_buttons[slot], &QPushButton::clicked, [this, slot] { OnConfigPressed(slot); });
+    }
   }
 
-  for (ExpansionInterface::Slot slot : ExpansionInterface::MEMCARD_SLOTS)
   {
+    auto slot = ExpansionInterface::Slot::A;
     connect(m_memcard_paths[slot], &QLineEdit::editingFinished, [this, slot] {
       // revert path change on failure
       if (!SetMemcard(slot, m_memcard_paths[slot]->text()))
@@ -333,7 +307,6 @@ void GameCubePane::UpdateButton(ExpansionInterface::Slot slot)
   switch (slot)
   {
   case ExpansionInterface::Slot::A:
-  case ExpansionInterface::Slot::B:
   {
     has_config = (device == ExpansionInterface::EXIDeviceType::MemoryCard ||
                   device == ExpansionInterface::EXIDeviceType::MemoryCardFolder ||
@@ -405,6 +378,8 @@ void GameCubePane::OnConfigPressed(ExpansionInterface::Slot slot)
     BroadbandAdapterSettingsDialog(this, BroadbandAdapterSettingsDialog::Type::BuiltIn).exec();
     return;
   }
+  case ExpansionInterface::EXIDeviceType::Brawlback:
+    return;
   default:
     PanicAlertFmt("Unknown settings pressed for {}", device);
     return;
@@ -719,15 +694,18 @@ void GameCubePane::LoadSettings()
   // Device Settings
   for (ExpansionInterface::Slot slot : ExpansionInterface::SLOTS)
   {
-    const ExpansionInterface::EXIDeviceType exi_device =
-        Config::Get(Config::GetInfoForEXIDevice(slot));
-    SignalBlocking(m_slot_combos[slot])
-        ->setCurrentIndex(m_slot_combos[slot]->findData(static_cast<int>(exi_device)));
-    UpdateButton(slot);
+    if (slot != ExpansionInterface::Slot::B)
+    {
+      const ExpansionInterface::EXIDeviceType exi_device =
+          Config::Get(Config::GetInfoForEXIDevice(slot));
+      SignalBlocking(m_slot_combos[slot])
+          ->setCurrentIndex(m_slot_combos[slot]->findData(static_cast<int>(exi_device)));
+      UpdateButton(slot);
+    }
   }
 
-  for (ExpansionInterface::Slot slot : ExpansionInterface::MEMCARD_SLOTS)
   {
+    auto slot = ExpansionInterface::Slot::A;
     SignalBlocking(m_memcard_paths[slot])
         ->setText(QString::fromStdString(Config::GetMemcardPath(slot, std::nullopt)));
     SignalBlocking(m_agp_paths[slot])
