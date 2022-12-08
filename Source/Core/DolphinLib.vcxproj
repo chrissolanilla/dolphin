@@ -95,6 +95,7 @@
   <ItemGroup>
     <ClInclude Include="Core\Brawlback\BrawlbackUtility.h" />
     <ClInclude Include="Core\Brawlback\Brawltypes.h" />
+    <ClInclude Include="Core\Brawlback\include\brawlback-common\BBConst.h" />
     <ClInclude Include="Core\Brawlback\include\brawlback-common\BrawlbackPad.h" />
     <ClInclude Include="Core\Brawlback\include\brawlback-common\ExiStructures.h" />
     <ClInclude Include="Core\Brawlback\include\brawlback-common\FrameData.h" />
@@ -110,8 +111,10 @@
     <ClInclude Include="Core\Brawlback\include\brawlback-common\PreserveBlock.h" />
     <ClInclude Include="Core\Brawlback\include\brawlback-common\Replay.h" />
     <ClInclude Include="Core\Brawlback\include\brawlback-common\RollbackInfo.h" />
+    <ClInclude Include="Core\Brawlback\include\brawlback-common\SavestateMemRegion.h" />
     <ClInclude Include="Core\Brawlback\include\brawlback-common\StartReplay.h" />
     <ClInclude Include="Core\Brawlback\include\brawlback-common\StartReplayPlayer.h" />
+    <ClInclude Include="Core\Brawlback\include\brawlback-common\SyncData.h" />
     <ClInclude Include="Core\Brawlback\include\json.hpp" />
     <ClInclude Include="Core\Brawlback\MemRegions.h" />
     <ClInclude Include="Core\Brawlback\Netplay\Matchmaking.h" />

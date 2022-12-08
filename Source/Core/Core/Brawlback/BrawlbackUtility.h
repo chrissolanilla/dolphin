@@ -152,7 +152,7 @@ namespace Brawlback {
         PlayerFrameData ret;
         ret.frame = frame;
         ret.playerIdx = pIdx;
-        std::default_random_engine generator = std::default_random_engine((s32)Common::Timer::GetTimeUs());
+        std::default_random_engine generator = std::default_random_engine((s32)Common::Timer::NowUs());
         ret.pad.buttons = (u16)((generator() % 65535));
         //ret.pad.stickX = (u8)(127-generator() % (127*2));
         ret.pad.stickX = 0;
