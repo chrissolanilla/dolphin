@@ -1,6 +1,8 @@
 // Copyright 2016 Dolphin Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include "VideoBackends/D3D12/VideoBackend.h"
+
 #include <string>
 
 #include "Common/CommonTypes.h"
@@ -14,7 +16,6 @@
 #include "VideoBackends/D3D12/D3D12SwapChain.h"
 #include "VideoBackends/D3D12/D3D12VertexManager.h"
 #include "VideoBackends/D3D12/DX12Context.h"
-#include "VideoBackends/D3D12/VideoBackend.h"
 
 #include "VideoCommon/FramebufferManager.h"
 #include "VideoCommon/ShaderCache.h"
@@ -50,7 +51,6 @@ void VideoBackend::FillBackendInfo()
   g_Config.backend_info.bSupportsExclusiveFullscreen = true;
   g_Config.backend_info.bSupportsDualSourceBlend = true;
   g_Config.backend_info.bSupportsPrimitiveRestart = true;
-  g_Config.backend_info.bSupportsOversizedViewports = false;
   g_Config.backend_info.bSupportsGeometryShaders = true;
   g_Config.backend_info.bSupports3DVision = false;
   g_Config.backend_info.bSupportsEarlyZ = true;
@@ -66,7 +66,7 @@ void VideoBackend::FillBackendInfo()
   g_Config.backend_info.bSupportsReversedDepthRange = false;
   g_Config.backend_info.bSupportsComputeShaders = true;
   g_Config.backend_info.bSupportsLogicOp = true;
-  g_Config.backend_info.bSupportsMultithreading = true;
+  g_Config.backend_info.bSupportsMultithreading = false;
   g_Config.backend_info.bSupportsGPUTextureDecoding = true;
   g_Config.backend_info.bSupportsST3CTextures = false;
   g_Config.backend_info.bSupportsCopyToVram = true;
@@ -84,6 +84,11 @@ void VideoBackend::FillBackendInfo()
   g_Config.backend_info.bSupportsPipelineCacheData = true;
   g_Config.backend_info.bSupportsCoarseDerivatives = true;
   g_Config.backend_info.bSupportsTextureQueryLevels = true;
+  g_Config.backend_info.bSupportsLodBiasInSampler = true;
+  g_Config.backend_info.bSupportsSettingObjectNames = true;
+  g_Config.backend_info.bSupportsPartialMultisampleResolve = true;
+  g_Config.backend_info.bSupportsDynamicVertexLoader = true;
+  g_Config.backend_info.bSupportsVSLinePointExpand = true;
 
   // We can only check texture support once we have a device.
   if (g_dx_context)

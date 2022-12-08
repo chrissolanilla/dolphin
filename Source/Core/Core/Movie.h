@@ -5,7 +5,6 @@
 
 #include <array>
 #include <cstring>
-#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -16,6 +15,11 @@ struct BootParameters;
 
 struct GCPadStatus;
 class PointerWrap;
+
+namespace ExpansionInterface
+{
+enum class Slot : int;
+}
 
 namespace WiimoteCommon
 {
@@ -32,13 +36,6 @@ class EncryptionKey;
 namespace Movie
 {
 // Enumerations and structs
-enum PlayMode
-{
-  MODE_NONE = 0,
-  MODE_RECORDING,
-  MODE_PLAYING
-};
-
 enum class ControllerType
 {
   None = 0,
@@ -166,7 +163,7 @@ void SetReset(bool reset);
 
 bool IsConfigSaved();
 bool IsStartingFromClearSave();
-bool IsUsingMemcard(int memcard);
+bool IsUsingMemcard(ExpansionInterface::Slot slot);
 void SetGraphicsConfig();
 bool IsNetPlayRecording();
 
@@ -202,14 +199,4 @@ std::string GetInputDisplay();
 std::string GetRTCDisplay();
 std::string GetRerecords();
 
-// Done this way to avoid mixing of core and gui code
-using GCManipFunction = std::function<void(GCPadStatus*, int)>;
-using WiiManipFunction = std::function<void(WiimoteCommon::DataReportBuilder&, int, int,
-                                            const WiimoteEmu::EncryptionKey&)>;
-
-void SetGCInputManip(GCManipFunction);
-void SetWiiInputManip(WiiManipFunction);
-void CallGCInputManip(GCPadStatus* PadStatus, int controllerID);
-void CallWiiInputManip(WiimoteCommon::DataReportBuilder& rpt, int controllerID, int ext,
-                       const WiimoteEmu::EncryptionKey& key);
 }  // namespace Movie

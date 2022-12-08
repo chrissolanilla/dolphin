@@ -17,7 +17,9 @@
 #include "Core/HW/DVD/DVDInterface.h"
 #include "Core/HW/EXI/EXI.h"
 #include "Core/HW/GPFifo.h"
+#include "Core/HW/HSP/HSP.h"
 #include "Core/HW/Memmap.h"
+#include "Core/HW/MemoryInterface.h"
 #include "Core/HW/ProcessorInterface.h"
 #include "Core/HW/SI/SI.h"
 #include "Core/HW/SystemTimers.h"
@@ -25,12 +27,13 @@
 #include "Core/HW/WII_IPC.h"
 #include "Core/IOS/IOS.h"
 #include "Core/State.h"
+#include "Core/System.h"
 
 namespace HW
 {
-void Init()
+void Init(const Sram* override_sram)
 {
-  CoreTiming::Init();
+  Core::System::GetInstance().GetCoreTiming().Init();
   SystemTimers::PreInit();
 
   State::Init();
@@ -40,13 +43,15 @@ void Init()
   VideoInterface::Init();
   SerialInterface::Init();
   ProcessorInterface::Init();
-  ExpansionInterface::Init();  // Needs to be initialized before Memory
-  Memory::Init();              // Needs to be initialized before AddressSpace
+  ExpansionInterface::Init(override_sram);  // Needs to be initialized before Memory
+  HSP::Init();
+  Memory::Init();  // Needs to be initialized before AddressSpace
   AddressSpace::Init();
+  MemoryInterface::Init();
   DSP::Init(Config::Get(Config::MAIN_DSP_HLE));
   DVDInterface::Init();
   GPFifo::Init();
-  CPU::Init(SConfig::GetInstance().cpu_core);
+  CPU::Init(Config::Get(Config::MAIN_CPU_CORE));
   SystemTimers::Init();
 
   if (SConfig::GetInstance().bWii)
@@ -66,20 +71,24 @@ void Shutdown()
   CPU::Shutdown();
   DVDInterface::Shutdown();
   DSP::Shutdown();
+  MemoryInterface::Shutdown();
   AddressSpace::Shutdown();
   Memory::Shutdown();
+  HSP::Shutdown();
   ExpansionInterface::Shutdown();
   SerialInterface::Shutdown();
   AudioInterface::Shutdown();
 
   State::Shutdown();
-  CoreTiming::Shutdown();
+  Core::System::GetInstance().GetCoreTiming().Shutdown();
 }
 
 void DoState(PointerWrap& p)
 {
   Memory::DoState(p);
   p.DoMarker("Memory");
+  MemoryInterface::DoState(p);
+  p.DoMarker("MemoryInterface");
   VideoInterface::DoState(p);
   p.DoMarker("VideoInterface");
   SerialInterface::DoState(p);
@@ -96,6 +105,8 @@ void DoState(PointerWrap& p)
   p.DoMarker("ExpansionInterface");
   AudioInterface::DoState(p);
   p.DoMarker("AudioInterface");
+  HSP::DoState(p);
+  p.DoMarker("HSP");
 
   if (SConfig::GetInstance().bWii)
   {

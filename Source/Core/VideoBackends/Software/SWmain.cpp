@@ -1,6 +1,8 @@
 // Copyright 2009 Dolphin Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include "VideoBackends/Software/VideoBackend.h"
+
 #include <cstring>
 #include <memory>
 #include <string>
@@ -12,7 +14,6 @@
 #include "Common/MsgHandler.h"
 
 #include "VideoBackends/Software/Clipper.h"
-#include "VideoBackends/Software/DebugUtil.h"
 #include "VideoBackends/Software/EfbInterface.h"
 #include "VideoBackends/Software/Rasterizer.h"
 #include "VideoBackends/Software/SWOGLWindow.h"
@@ -20,7 +21,6 @@
 #include "VideoBackends/Software/SWTexture.h"
 #include "VideoBackends/Software/SWVertexLoader.h"
 #include "VideoBackends/Software/TextureCache.h"
-#include "VideoBackends/Software/VideoBackend.h"
 
 #include "VideoCommon/FramebufferManager.h"
 #include "VideoCommon/TextureCacheBase.h"
@@ -67,7 +67,6 @@ void VideoSoftware::InitBackendInfo()
   g_Config.backend_info.bSupports3DVision = false;
   g_Config.backend_info.bSupportsDualSourceBlend = true;
   g_Config.backend_info.bSupportsEarlyZ = true;
-  g_Config.backend_info.bSupportsOversizedViewports = true;
   g_Config.backend_info.bSupportsPrimitiveRestart = false;
   g_Config.backend_info.bSupportsMultithreading = false;
   g_Config.backend_info.bSupportsComputeShaders = false;
@@ -86,6 +85,10 @@ void VideoSoftware::InitBackendInfo()
   g_Config.backend_info.bSupportsBBox = true;
   g_Config.backend_info.bSupportsCoarseDerivatives = false;
   g_Config.backend_info.bSupportsTextureQueryLevels = false;
+  g_Config.backend_info.bSupportsLodBiasInSampler = false;
+  g_Config.backend_info.bSupportsSettingObjectNames = false;
+  g_Config.backend_info.bSupportsPartialMultisampleResolve = true;
+  g_Config.backend_info.bSupportsDynamicVertexLoader = false;
 
   // aamodes
   g_Config.backend_info.AAModes = {1};
@@ -101,7 +104,6 @@ bool VideoSoftware::Initialize(const WindowSystemInfo& wsi)
 
   Clipper::Init();
   Rasterizer::Init();
-  DebugUtil::Init();
 
   g_renderer = std::make_unique<SWRenderer>(std::move(window));
   g_vertex_manager = std::make_unique<SWVertexLoader>();
@@ -131,7 +133,6 @@ void VideoSoftware::Shutdown()
   if (g_renderer)
     g_renderer->Shutdown();
 
-  DebugUtil::Shutdown();
   g_texture_cache.reset();
   g_perf_query.reset();
   g_framebuffer_manager.reset();

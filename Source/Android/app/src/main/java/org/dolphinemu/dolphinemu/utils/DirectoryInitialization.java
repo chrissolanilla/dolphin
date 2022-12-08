@@ -9,15 +9,18 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.Environment;
-import android.preference.PreferenceManager;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
+import androidx.preference.PreferenceManager;
 
 import org.dolphinemu.dolphinemu.NativeLibrary;
+import org.dolphinemu.dolphinemu.R;
 import org.dolphinemu.dolphinemu.activities.EmulationActivity;
+import org.dolphinemu.dolphinemu.features.settings.model.IntSetting;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -43,49 +46,55 @@ public final class DirectoryInitialization
   {
     NOT_YET_INITIALIZED,
     INITIALIZING,
-    DOLPHIN_DIRECTORIES_INITIALIZED,
-    CANT_FIND_EXTERNAL_STORAGE
+    DOLPHIN_DIRECTORIES_INITIALIZED
   }
 
   public static void start(Context context)
   {
-    if (directoryState.getValue() == DirectoryInitializationState.INITIALIZING)
+    if (directoryState.getValue() != DirectoryInitializationState.NOT_YET_INITIALIZED)
       return;
 
     directoryState.setValue(DirectoryInitializationState.INITIALIZING);
 
     // Can take a few seconds to run, so don't block UI thread.
-    //noinspection TrivialFunctionalExpressionUsage
-    ((Runnable) () -> init(context)).run();
+    new Thread(() -> init(context)).start();
   }
 
   private static void init(Context context)
   {
-    if (directoryState.getValue() != DirectoryInitializationState.DOLPHIN_DIRECTORIES_INITIALIZED)
+    if (directoryState.getValue() == DirectoryInitializationState.DOLPHIN_DIRECTORIES_INITIALIZED)
+      return;
+
+    if (!setDolphinUserDirectory(context))
     {
-      if (setDolphinUserDirectory(context))
-      {
-        initializeInternalStorage(context);
-        boolean wiimoteIniWritten = initializeExternalStorage(context);
-        NativeLibrary.Initialize();
-        NativeLibrary.ReportStartToAnalytics();
-
-        areDirectoriesAvailable = true;
-
-        if (wiimoteIniWritten)
-        {
-          // This has to be done after calling NativeLibrary.Initialize(),
-          // as it relies on the config system
-          EmulationActivity.updateWiimoteNewIniPreferences(context);
-        }
-
-        directoryState.postValue(DirectoryInitializationState.DOLPHIN_DIRECTORIES_INITIALIZED);
-      }
-      else
-      {
-        directoryState.postValue(DirectoryInitializationState.CANT_FIND_EXTERNAL_STORAGE);
-      }
+      Toast.makeText(context, R.string.external_storage_not_mounted, Toast.LENGTH_LONG).show();
+      System.exit(1);
     }
+
+    initializeInternalStorage(context);
+    boolean wiimoteIniWritten = initializeExternalStorage(context);
+    NativeLibrary.Initialize();
+    NativeLibrary.ReportStartToAnalytics();
+
+    areDirectoriesAvailable = true;
+
+    SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+    if (IntSetting.MAIN_INTERFACE_THEME.getIntGlobal() !=
+            preferences.getInt(ThemeHelper.CURRENT_THEME, ThemeHelper.DEFAULT))
+    {
+      preferences.edit()
+              .putInt(ThemeHelper.CURRENT_THEME, IntSetting.MAIN_INTERFACE_THEME.getIntGlobal())
+              .apply();
+    }
+
+    if (wiimoteIniWritten)
+    {
+      // This has to be done after calling NativeLibrary.Initialize(),
+      // as it relies on the config system
+      EmulationActivity.updateWiimoteNewIniPreferences(context);
+    }
+
+    directoryState.postValue(DirectoryInitializationState.DOLPHIN_DIRECTORIES_INITIALIZED);
   }
 
   @Nullable
@@ -234,6 +243,11 @@ public final class DirectoryInitialization
               "DirectoryInitialization must run before accessing the user directory!");
     }
     return userPath;
+  }
+
+  public static File getGameListCache(Context context)
+  {
+    return new File(context.getExternalCacheDir(), "gamelist.cache");
   }
 
   private static boolean copyAsset(String asset, File output, Boolean overwrite, Context context)

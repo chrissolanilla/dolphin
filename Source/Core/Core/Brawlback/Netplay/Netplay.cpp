@@ -67,7 +67,7 @@ void BrawlbackNetplay::BroadcastGameSettings(ENetHost* server, GameSettings* set
     settingsPckt.append(settings, sizeof(GameSettings));
 
     this->BroadcastPacket(settingsPckt, ENET_PACKET_FLAG_RELIABLE, server);
-    INFO_LOG(BRAWLBACK, "Sent game settings data packet\n");
+    INFO_LOG_FMT(BRAWLBACK, "Sent game settings data packet\n");
 }
 
 
@@ -88,7 +88,7 @@ void BrawlbackNetplay::BroadcastPlayerFrameDataWithPastFrames(ENetHost* server, 
       frame_data_packet.append(framedata, sizeof(PlayerFrameData));
     }
 
-    //INFO_LOG(BRAWLBACK, "Sending input packet of size: %u   num inputs: %u\n", frame_data_packet.getDataSize(), framedatas.size());
+    //INFO_LOG_FMT(BRAWLBACK, "Sending input packet of size: %u   num inputs: %u\n", frame_data_packet.getDataSize(), framedatas.size());
 
     std::pair<sf::Packet, int> pckt_content = std::make_pair(frame_data_packet, ENET_PACKET_FLAG_UNSEQUENCED);
     std::unique_ptr<BrawlbackNetPacket> pckt = std::make_unique<BrawlbackNetPacket>(pckt_content);

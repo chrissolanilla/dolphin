@@ -69,6 +69,11 @@ namespace Brawlback {
       CMD_REPLAY_START_REPLAYS_STRUCT = 19,
       CMD_REPLAY_REPLAYS_STRUCT = 20,
       CMD_REPLAYS_REPLAYS_END = 21,
+      CMD_GET_NEXT_FRAME = 22,
+      CMD_BAD_INDEX = 23,
+      CMD_GET_NUM_REPLAYS = 24,
+      CMD_SET_CUR_INDEX = 25,
+      CMD_GET_START_REPLAY = 26,
 
       CMD_MATCH_END = 4,
       CMD_SET_MATCH_SELECTIONS = 6,
@@ -164,11 +169,17 @@ namespace Brawlback {
                                                            u32 frame);
 
     inline bool isInputsEqual(const BrawlbackPad& p1, const BrawlbackPad& p2) {
+        // TODO: this code is duplicated on the .cpp make it dry or I don't know
         bool buttons = p1.buttons == p2.buttons;
+        bool holdButtons = p1.holdButtons == p2.holdButtons;
+        bool rapidFireButtons = p1.rapidFireButtons == p2.rapidFireButtons;
+        bool releasedButtons = p1.releasedButtons == p2.releasedButtons;
+        bool newPressedButtons = p1.newPressedButtons == p2.newPressedButtons;
         bool triggers = p1.LTrigger == p2.LTrigger && p1.RTrigger == p2.RTrigger;
         bool analogSticks = p1.stickX == p2.stickX && p1.stickY == p2.stickY;
         bool cSticks = p1.cStickX == p2.cStickX && p1.cStickY == p2.cStickY;
-        return buttons && triggers && analogSticks && cSticks;
+        return buttons && holdButtons && rapidFireButtons && releasedButtons && newPressedButtons && analogSticks && cSticks && triggers;
+
         //return memcmp(&p1, &p2, sizeof(BrawlbackPad)) == 0;
     }
 
@@ -176,7 +187,7 @@ namespace Brawlback {
         PlayerFrameData ret;
         ret.frame = frame;
         ret.playerIdx = pIdx;
-        std::default_random_engine generator = std::default_random_engine((s32)Common::Timer::GetTimeUs());
+        std::default_random_engine generator = std::default_random_engine((s32)Common::Timer::NowUs());
         ret.pad.buttons = (u16)((generator() % 65535));
         //ret.pad.stickX = (u8)(127-generator() % (127*2));
         ret.pad.stickX = 0;

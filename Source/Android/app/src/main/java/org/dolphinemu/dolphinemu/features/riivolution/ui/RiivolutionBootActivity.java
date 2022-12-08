@@ -5,19 +5,19 @@ package org.dolphinemu.dolphinemu.features.riivolution.ui;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
-import android.widget.Button;
-import android.widget.TextView;
 
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.view.WindowCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
-import androidx.recyclerview.widget.RecyclerView;
 
 import org.dolphinemu.dolphinemu.R;
 import org.dolphinemu.dolphinemu.activities.EmulationActivity;
+import org.dolphinemu.dolphinemu.databinding.ActivityRiivolutionBootBinding;
 import org.dolphinemu.dolphinemu.features.riivolution.model.RiivolutionPatches;
-import org.dolphinemu.dolphinemu.ui.DividerItemDecoration;
+import org.dolphinemu.dolphinemu.features.settings.model.StringSetting;
 import org.dolphinemu.dolphinemu.utils.DirectoryInitialization;
+import org.dolphinemu.dolphinemu.utils.InsetsHelper;
+import org.dolphinemu.dolphinemu.utils.ThemeHelper;
 
 public class RiivolutionBootActivity extends AppCompatActivity
 {
@@ -27,6 +27,8 @@ public class RiivolutionBootActivity extends AppCompatActivity
   private static final String ARG_DISC_NUMBER = "disc_number";
 
   private RiivolutionPatches mPatches;
+
+  private ActivityRiivolutionBootBinding mBinding;
 
   public static void launch(Context context, String gamePath, String gameId, int revision,
           int discNumber)
@@ -42,9 +44,14 @@ public class RiivolutionBootActivity extends AppCompatActivity
   @Override
   protected void onCreate(Bundle savedInstanceState)
   {
+    ThemeHelper.setTheme(this);
+
     super.onCreate(savedInstanceState);
 
-    setContentView(R.layout.activity_riivolution_boot);
+    mBinding = ActivityRiivolutionBootBinding.inflate(getLayoutInflater());
+    setContentView(mBinding.getRoot());
+
+    WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
 
     Intent intent = getIntent();
 
@@ -53,12 +60,13 @@ public class RiivolutionBootActivity extends AppCompatActivity
     int revision = intent.getIntExtra(ARG_REVISION, -1);
     int discNumber = intent.getIntExtra(ARG_DISC_NUMBER, -1);
 
-    TextView textSdRoot = findViewById(R.id.text_sd_root);
-    String riivolutionPath = DirectoryInitialization.getUserDirectory() + "/Load/Riivolution";
-    textSdRoot.setText(getString(R.string.riivolution_sd_root, riivolutionPath));
+    String loadPath = StringSetting.MAIN_LOAD_PATH.getStringGlobal();
+    if (loadPath.isEmpty())
+      loadPath = DirectoryInitialization.getUserDirectory() + "/Load";
 
-    Button buttonStart = findViewById(R.id.button_start);
-    buttonStart.setOnClickListener((v) ->
+    mBinding.textSdRoot.setText(getString(R.string.riivolution_sd_root, loadPath + "/Riivolution"));
+
+    mBinding.buttonStart.setOnClickListener((v) ->
     {
       if (mPatches != null)
         mPatches.saveConfig();
@@ -72,6 +80,14 @@ public class RiivolutionBootActivity extends AppCompatActivity
       patches.loadConfig();
       runOnUiThread(() -> populateList(patches));
     }).start();
+
+    mBinding.toolbarRiivolutionLayout.setTitle(getString(R.string.riivolution_riivolution));
+    setSupportActionBar(mBinding.toolbarRiivolution);
+    getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+
+    InsetsHelper.setUpAppBarWithScrollView(this, mBinding.appbarRiivolution,
+            mBinding.scrollViewRiivolution, mBinding.workaroundView);
+    ThemeHelper.enableScrollTint(this, mBinding.toolbarRiivolution, mBinding.appbarRiivolution);
   }
 
   @Override
@@ -83,13 +99,18 @@ public class RiivolutionBootActivity extends AppCompatActivity
       mPatches.saveConfig();
   }
 
+  @Override
+  public boolean onSupportNavigateUp()
+  {
+    onBackPressed();
+    return true;
+  }
+
   private void populateList(RiivolutionPatches patches)
   {
     mPatches = patches;
 
-    RecyclerView recyclerView = findViewById(R.id.recycler_view);
-
-    recyclerView.setAdapter(new RiivolutionAdapter(this, patches));
-    recyclerView.setLayoutManager(new LinearLayoutManager(this));
+    mBinding.recyclerView.setAdapter(new RiivolutionAdapter(this, patches));
+    mBinding.recyclerView.setLayoutManager(new LinearLayoutManager(this));
   }
 }

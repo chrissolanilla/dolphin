@@ -19,7 +19,9 @@ namespace Common
 std::string RootUserPath(FromWhichRoot from)
 {
   int idx = from == FROM_CONFIGURED_ROOT ? D_WIIROOT_IDX : D_SESSION_WIIROOT_IDX;
-  return File::GetUserPath(idx);
+  std::string dir = File::GetUserPath(idx);
+  dir.pop_back();  // remove trailing path separator
+  return dir;
 }
 
 static std::string RootUserPath(std::optional<FromWhichRoot> from)
@@ -36,6 +38,12 @@ std::string GetImportTitlePath(u64 title_id, std::optional<FromWhichRoot> from)
 std::string GetTicketFileName(u64 title_id, std::optional<FromWhichRoot> from)
 {
   return fmt::format("{}/ticket/{:08x}/{:08x}.tik", RootUserPath(from),
+                     static_cast<u32>(title_id >> 32), static_cast<u32>(title_id));
+}
+
+std::string GetV1TicketFileName(u64 title_id, std::optional<FromWhichRoot> from)
+{
+  return fmt::format("{}/ticket/{:08x}/{:08x}.tv1", RootUserPath(from),
                      static_cast<u32>(title_id >> 32), static_cast<u32>(title_id));
 }
 

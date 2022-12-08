@@ -26,11 +26,11 @@ namespace SlippiUtility
 
       // shouldForceInit = false;
 
-      // Get Main Heap Boundaries
-      // fullBackupRegions[3].startAddress = PowerPC::HostRead_U32(0x804d76b8); // <- from melee
-      // fullBackupRegions[3].endAddress = PowerPC::HostRead_U32(0x804d76bc);   // <- from melee
-      // WARN_LOG(BRAWLBACK, "Heap start is: 0x%X", fullBackupRegions[3].startAddress);
-      // WARN_LOG(BRAWLBACK, "Heap end is: 0x%X", fullBackupRegions[3].endAddress);
+        // Get Main Heap Boundaries
+        // fullBackupRegions[3].startAddress = PowerPC::HostRead_U32(0x804d76b8); // <- from melee
+        // fullBackupRegions[3].endAddress = PowerPC::HostRead_U32(0x804d76bc);   // <- from melee
+        // WARN_LOG_FMT(BRAWLBACK, "Heap start is: 0x{:#x}", fullBackupRegions[3].startAddress);
+        // WARN_LOG_FMT(BRAWLBACK, "Heap end is: 0x{:#x}", fullBackupRegions[3].endAddress);
 
       // Sort exclude sections
       std::sort(excludeSections.begin(), excludeSections.end(), cmpFn);

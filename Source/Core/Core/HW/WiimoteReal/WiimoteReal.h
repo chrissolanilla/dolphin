@@ -51,7 +51,7 @@ public:
   Wiimote(Wiimote&&) = delete;
   Wiimote& operator=(Wiimote&&) = delete;
 
-  virtual ~Wiimote() {}
+  ~Wiimote() override;
   // This needs to be called in derived destructors!
   void Shutdown();
 
@@ -62,10 +62,15 @@ public:
   bool IsBalanceBoard();
 
   void InterruptDataOutput(const u8* data, const u32 size) override;
-  void Update() override;
+
+  u8 GetWiimoteDeviceIndex() const override;
+  void SetWiimoteDeviceIndex(u8 index) override;
+
+  void PrepareInput(WiimoteEmu::DesiredWiimoteState* target_state) override;
+  void Update(const WiimoteEmu::DesiredWiimoteState& target_state) override;
   void EventLinked() override;
   void EventUnlinked() override;
-  bool IsButtonPressed() override;
+  WiimoteCommon::ButtonData GetCurrentlyPressedButtons() override;
 
   void EmuStop();
 
@@ -98,6 +103,8 @@ protected:
   // This is not enabled on all platforms as connecting a Wiimote can be a pain on some platforms.
   bool m_really_disconnect = false;
 
+  u8 m_bt_device_index = 0;
+
 private:
   void Read();
   bool Write();
@@ -125,6 +132,8 @@ private:
 
   void ThreadFunc();
 
+  void RefreshConfig();
+
   bool m_is_linked = false;
 
   // We track the speaker state to convert unnecessary speaker data into rumble reports.
@@ -144,6 +153,11 @@ private:
 
   Common::SPSCQueue<Report> m_read_reports;
   Common::SPSCQueue<Report> m_write_reports;
+
+  bool m_speaker_enabled_in_dolphin_config = false;
+  int m_balance_board_dump_port = 0;
+
+  size_t m_config_changed_callback_id;
 };
 
 class WiimoteScannerBackend
@@ -209,5 +223,4 @@ void InitAdapterClass();
 void HandleWiimotesInControllerInterfaceSettingChange();
 void PopulateDevices();
 void ProcessWiimotePool();
-
 }  // namespace WiimoteReal

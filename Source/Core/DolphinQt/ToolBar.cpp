@@ -1,6 +1,8 @@
 // Copyright 2015 Dolphin Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include "DolphinQt/ToolBar.h"
+
 #include <algorithm>
 #include <vector>
 
@@ -12,7 +14,6 @@
 #include "DolphinQt/Host.h"
 #include "DolphinQt/Resources.h"
 #include "DolphinQt/Settings.h"
-#include "DolphinQt/ToolBar.h"
 
 static QSize ICON_SIZE(32, 32);
 
@@ -60,8 +61,6 @@ void ToolBar::OnEmulationStateChanged(Core::State state)
   m_stop_action->setEnabled(running);
   m_fullscreen_action->setEnabled(running);
   m_screenshot_action->setEnabled(running);
-  m_netplay_action->setEnabled(NetPlay::IsNetPlayRunning() ? !running : true);
-  m_controllers_action->setEnabled(NetPlay::IsNetPlayRunning() ? !running : true);
 
   bool playing = running && state != Core::State::Paused;
   UpdatePausePlayButtonState(playing);
@@ -131,15 +130,14 @@ void ToolBar::MakeActions()
   m_config_action = addAction(tr("Config"), this, &ToolBar::SettingsPressed);
   m_graphics_action = addAction(tr("Graphics"), this, &ToolBar::GraphicsPressed);
   m_controllers_action = addAction(tr("Controllers"), this, &ToolBar::ControllersPressed);
-  m_controllers_action->setEnabled(true);
 
   // Ensure every button has about the same width
   std::vector<QWidget*> items;
   for (const auto& action :
        {m_open_action, m_pause_play_action, m_stop_action, m_stop_action, m_fullscreen_action,
-        m_screenshot_action, m_netplay_action, m_config_action, m_graphics_action, m_controllers_action,
-        m_step_action, m_step_over_action, m_step_out_action, m_skip_action, m_show_pc_action,
-        m_set_pc_action})
+        m_screenshot_action, m_netplay_action, m_config_action, m_graphics_action,
+        m_controllers_action, m_step_action, m_step_over_action, m_step_out_action, m_skip_action,
+        m_show_pc_action, m_set_pc_action})
   {
     items.emplace_back(widgetForAction(action));
   }
@@ -192,8 +190,8 @@ void ToolBar::UpdateIcons()
 
   m_stop_action->setIcon(Resources::GetScaledThemeIcon("stop"));
   m_fullscreen_action->setIcon(Resources::GetScaledThemeIcon("fullscreen"));
-  m_screenshot_action->setIcon(Resources::GetScaledThemeIcon("screenshot"));
   m_netplay_action->setIcon(Resources::GetScaledThemeIcon("netplay"));
+  m_screenshot_action->setIcon(Resources::GetScaledThemeIcon("screenshot"));
   m_config_action->setIcon(Resources::GetScaledThemeIcon("config"));
   m_controllers_action->setIcon(Resources::GetScaledThemeIcon("gcpad"));
   m_graphics_action->setIcon(Resources::GetScaledThemeIcon("graphics"));

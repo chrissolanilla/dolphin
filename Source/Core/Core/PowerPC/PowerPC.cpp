@@ -18,6 +18,7 @@
 #include "Common/FloatUtils.h"
 #include "Common/Logging/Log.h"
 
+#include "Core/Config/MainSettings.h"
 #include "Core/ConfigManager.h"
 #include "Core/Core.h"
 #include "Core/CoreTiming.h"
@@ -30,6 +31,7 @@
 #include "Core/PowerPC/JitInterface.h"
 #include "Core/PowerPC/MMU.h"
 #include "Core/PowerPC/PPCSymbolDB.h"
+#include "Core/System.h"
 
 namespace PowerPC
 {
@@ -67,7 +69,7 @@ void PairedSingle::SetPS1(double value)
   ps1 = Common::BitCast<u64>(value);
 }
 
-static void InvalidateCacheThreadSafe(u64 userdata, s64 cyclesLate)
+static void InvalidateCacheThreadSafe(Core::System& system, u64 userdata, s64 cyclesLate)
 {
   ppcState.iCache.Invalidate(static_cast<u32>(userdata));
 }
@@ -99,7 +101,7 @@ std::ostream& operator<<(std::ostream& os, CPUCore core)
 void DoState(PointerWrap& p)
 {
   // some of this code has been disabled, because
-  // it changes registers even in MODE_MEASURE (which is suspicious and seems like it could cause
+  // it changes registers even in Mode::Measure (which is suspicious and seems like it could cause
   // desyncs)
   // and because the values it's changing have been added to CoreTiming::DoState, so it might
   // conflict to mess with them here.
@@ -131,7 +133,7 @@ void DoState(PointerWrap& p)
 
   ppcState.iCache.DoState(p);
 
-  if (p.GetMode() == PointerWrap::MODE_READ)
+  if (p.IsReadMode())
   {
     RoundingModeUpdated();
     IBATUpdated();
@@ -219,7 +221,8 @@ static void InitializeCPUCore(CPUCore cpu_core)
     s_cpu_core_base = JitInterface::InitJitCore(cpu_core);
     if (!s_cpu_core_base)  // Handle Situations where JIT core isn't available
     {
-      WARN_LOG_FMT(POWERPC, "CPU core {} not available. Falling back to default.", cpu_core);
+      WARN_LOG_FMT(POWERPC, "CPU core {} not available. Falling back to default.",
+                   static_cast<int>(cpu_core));
       s_cpu_core_base = JitInterface::InitJitCore(DefaultCPUCore());
     }
     break;
@@ -256,15 +259,15 @@ CPUCore DefaultCPUCore()
 
 void Init(CPUCore cpu_core)
 {
-  s_invalidate_cache_thread_safe =
-      CoreTiming::RegisterEvent("invalidateEmulatedCache", InvalidateCacheThreadSafe);
+  s_invalidate_cache_thread_safe = Core::System::GetInstance().GetCoreTiming().RegisterEvent(
+      "invalidateEmulatedCache", InvalidateCacheThreadSafe);
 
   Reset();
 
   InitializeCPUCore(cpu_core);
   ppcState.iCache.Init();
 
-  if (SConfig::GetInstance().bEnableDebugging)
+  if (Config::Get(Config::MAIN_ENABLE_DEBUGGING))
     breakpoints.ClearAllTemporary();
 }
 
@@ -282,8 +285,8 @@ void ScheduleInvalidateCacheThreadSafe(u32 address)
 {
   if (CPU::GetState() == CPU::State::Running)
   {
-    CoreTiming::ScheduleEvent(0, s_invalidate_cache_thread_safe, address,
-                              CoreTiming::FromThread::NON_CPU);
+    Core::System::GetInstance().GetCoreTiming().ScheduleEvent(
+        0, s_invalidate_cache_thread_safe, address, CoreTiming::FromThread::NON_CPU);
   }
   else
   {
@@ -599,7 +602,7 @@ void CheckExternalExceptions()
     }
     else
     {
-      DEBUG_ASSERT_MSG(POWERPC, 0, "Unknown EXT interrupt: Exceptions == %08x", exceptions);
+      DEBUG_ASSERT_MSG(POWERPC, 0, "Unknown EXT interrupt: Exceptions == {:08x}", exceptions);
       ERROR_LOG_FMT(POWERPC, "Unknown EXTERNAL INTERRUPT exception: Exceptions == {:08x}",
                     exceptions);
     }
@@ -608,16 +611,18 @@ void CheckExternalExceptions()
 
 void CheckBreakPoints()
 {
-  if (!PowerPC::breakpoints.IsBreakPointEnable(PC))
+  const TBreakPoint* bp = PowerPC::breakpoints.GetBreakpoint(PC);
+
+  if (!bp || !bp->is_enabled || !EvaluateCondition(bp->condition))
     return;
 
-  if (PowerPC::breakpoints.IsBreakPointBreakOnHit(PC))
+  if (bp->break_on_hit)
   {
     CPU::Break();
     if (GDBStub::IsActive())
       GDBStub::TakeControl();
   }
-  if (PowerPC::breakpoints.IsBreakPointLogOnHit(PC))
+  if (bp->log_on_hit)
   {
     NOTICE_LOG_FMT(MEMMAP,
                    "BP {:08x} {}({:08x} {:08x} {:08x} {:08x} {:08x} {:08x} {:08x} {:08x} {:08x} "

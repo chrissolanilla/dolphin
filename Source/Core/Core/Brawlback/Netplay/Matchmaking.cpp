@@ -43,7 +43,7 @@ Matchmaking::Matchmaking(UserInfo user)
 	m_server = nullptr;
 
 	MM_HOST = getDefaultMMHost();
-	generator = std::default_random_engine(Common::Timer::GetTimeMs());
+  generator = std::default_random_engine(Common::Timer::NowMs());
 }
 
 Matchmaking::~Matchmaking()
@@ -127,7 +127,7 @@ void Matchmaking::FindMatch(MatchSearchSettings settings)
 	//this->isMex = SConfig::GetInstance().m_slippiCustomMMEnabled && isMex;
 	isMmConnected = false;
 
-	ERROR_LOG(BRAWLBACK, "[Matchmaking] Starting matchmaking...");
+	ERROR_LOG_FMT(BRAWLBACK, "[Matchmaking] Starting matchmaking...");
 
 	m_searchSettings = settings;
 
@@ -211,7 +211,7 @@ int Matchmaking::receiveMessage(json &msg, int timeoutMs)
 
 			std::string str(buf.begin(), buf.end());
 			msg = json::parse(str);
-			// ERROR_LOG(BRAWLBACK, "[Matchmaking] MESSAGE: %s", msg.dump());
+			// ERROR_LOG_FMT(BRAWLBACK, "[Matchmaking] MESSAGE: {}", msg.dump());
 
 			enet_packet_destroy(netEvent.packet);
 			return 0;
@@ -305,11 +305,11 @@ void Matchmaking::startMatchmaking()
 
 		if (customPort) {
 			m_hostPort = SConfig::GetInstance().m_slippiNetplayPort;
-            INFO_LOG(BRAWLBACK, "Using custom port: %i\n", m_hostPort);
+            INFO_LOG_FMT(BRAWLBACK, "Using custom port: {}\n", m_hostPort);
         }
 		else
 			m_hostPort = 41000 + (generator() % 10000);
-		ERROR_LOG(BRAWLBACK, "[Matchmaking] Port to use: %d...", m_hostPort);
+		ERROR_LOG_FMT(BRAWLBACK, "[Matchmaking] Port to use: {}...", m_hostPort);
 
 		// We are explicitly setting the client address because we are trying to utilize our connection
 		// to the matchmaking service in order to hole punch. This port will end up being the port
@@ -327,13 +327,13 @@ void Matchmaking::startMatchmaking()
 		// Failed to create client
 		m_state = ProcessState::ERROR_ENCOUNTERED;
 		m_errorMsg = "Failed to create mm client";
-		ERROR_LOG(BRAWLBACK, "[Matchmaking] Failed to create client...");
+		ERROR_LOG_FMT(BRAWLBACK, "[Matchmaking] Failed to create client...");
 		return;
 	}
 
 	ENetAddress addr;
 	auto effectiveHost = getMMHostForSearchMode();
-	ERROR_LOG(BRAWLBACK, "[Matchmaking] HOST: %s", effectiveHost.c_str());
+	ERROR_LOG_FMT(BRAWLBACK, "[Matchmaking] HOST: {}", effectiveHost.c_str());
 
 	enet_address_set_host(&addr, effectiveHost.c_str());
 	addr.port = MM_PORT;
@@ -345,7 +345,7 @@ void Matchmaking::startMatchmaking()
 		// Failed to connect to server
 		m_state = ProcessState::ERROR_ENCOUNTERED;
 		m_errorMsg = "Failed to start connection to mm server";
-		ERROR_LOG(BRAWLBACK, "[Matchmaking] Failed to start connection to mm server...");
+		ERROR_LOG_FMT(BRAWLBACK, "[Matchmaking] Failed to start connection to mm server...");
 		return;
 	}
 
@@ -361,7 +361,7 @@ void Matchmaking::startMatchmaking()
 			connectAttemptCount++;
 			if (connectAttemptCount >= 20)
 			{
-				ERROR_LOG(BRAWLBACK, "[Matchmaking] Failed to connect to mm server...");
+				ERROR_LOG_FMT(BRAWLBACK, "[Matchmaking] Failed to connect to mm server...");
 				m_state = ProcessState::ERROR_ENCOUNTERED;
 				m_errorMsg = "Failed to connect to mm server";
 				return;
@@ -373,14 +373,14 @@ void Matchmaking::startMatchmaking()
 		netEvent.peer->data = &userInfo.displayName;
 		m_client->intercept = ENetUtil::InterceptCallback;
 		isMmConnected = true;
-		ERROR_LOG(BRAWLBACK, "[Matchmaking] Connected to mm server...");
+		ERROR_LOG_FMT(BRAWLBACK, "[Matchmaking] Connected to mm server...");
 	}
 
-	ERROR_LOG(BRAWLBACK, "[Matchmaking] Trying to find match...");
+	ERROR_LOG_FMT(BRAWLBACK, "[Matchmaking] Trying to find match...");
 
 	/*if (!m_user->IsLoggedIn())
 	{
-	    ERROR_LOG(BRAWLBACK, "[Matchmaking] Must be logged in to queue");
+	    ERROR_LOG_FMT(BRAWLBACK, "[Matchmaking] Must be logged in to queue");
 	    m_state = ProcessState::ERROR_ENCOUNTERED;
 	    m_errorMsg = "Must be logged in to queue. Go back to menu";
 	    return;
@@ -408,14 +408,14 @@ void Matchmaking::startMatchmaking()
 	hostname = gethostname(host, sizeof(host)); // find the host name
 	if (hostname == -1)
 	{
-		ERROR_LOG(BRAWLBACK, "[Matchmaking] Error finding LAN address");
+		ERROR_LOG_FMT(BRAWLBACK, "[Matchmaking] Error finding LAN address");
 	}
 	else
 	{
 		host_entry = (hostent*)gethostbyname(host); // find host information
 		if (host_entry == NULL || host_entry->h_addrtype != AF_INET)
 		{
-			ERROR_LOG(BRAWLBACK, "[Matchmaking] Error finding LAN host");
+			ERROR_LOG_FMT(BRAWLBACK, "[Matchmaking] Error finding LAN host");
 		}
 		else
 		{
@@ -424,7 +424,7 @@ void Matchmaking::startMatchmaking()
 			while (host_entry->h_addr_list[i] != 0)
 			{
 				IP = inet_ntoa(*((struct in_addr *)host_entry->h_addr_list[i]));
-				WARN_LOG(BRAWLBACK, "[Matchmaking] IP at idx %d: %s", i, IP);
+				WARN_LOG_FMT(BRAWLBACK, "[Matchmaking] IP at idx {}: {}", i, IP);
 				i++;
 			}
 
@@ -435,11 +435,11 @@ void Matchmaking::startMatchmaking()
 	if (SConfig::GetInstance().m_slippiForceLanIp)
 	{
 
-		WARN_LOG(BRAWLBACK, "[Matchmaking] Overwriting LAN IP sent with configured address");
+		WARN_LOG_FMT(BRAWLBACK, "[Matchmaking] Overwriting LAN IP sent with configured address");
 		sprintf(lanAddr, "%s:%d", SConfig::GetInstance().m_slippiLanIp.c_str(), m_hostPort);
 	}
 
-	WARN_LOG(BRAWLBACK, "[Matchmaking] Sending LAN address: %s", lanAddr);
+	WARN_LOG_FMT(BRAWLBACK, "[Matchmaking] Sending LAN address: {}", lanAddr);
 
 	std::vector<u8> connectCodeBuf;
 	connectCodeBuf.insert(connectCodeBuf.end(), m_searchSettings.connectCode.begin(),
@@ -471,7 +471,7 @@ void Matchmaking::startMatchmaking()
 	int rcvRes = receiveMessage(response, 5000);
 	if (rcvRes != 0)
 	{
-		ERROR_LOG(BRAWLBACK, "[Matchmaking] Did not receive response from server for create ticket");
+		ERROR_LOG_FMT(BRAWLBACK, "[Matchmaking] Did not receive response from server for create ticket");
 		m_state = ProcessState::ERROR_ENCOUNTERED;
 		m_errorMsg = "Failed to join mm queue";
 		return;
@@ -480,8 +480,8 @@ void Matchmaking::startMatchmaking()
 	std::string respType = response["type"];
 	if (respType != MmMessageType::CREATE_TICKET_RESP)
 	{
-		ERROR_LOG(BRAWLBACK, "[Matchmaking] Received incorrect response for create ticket");
-		ERROR_LOG(BRAWLBACK, "%s", response.dump().c_str());
+		ERROR_LOG_FMT(BRAWLBACK, "[Matchmaking] Received incorrect response for create ticket");
+		ERROR_LOG_FMT(BRAWLBACK, "{}", response.dump().c_str());
 		m_state = ProcessState::ERROR_ENCOUNTERED;
 		m_errorMsg = "Invalid response when joining mm queue";
 		return;
@@ -490,14 +490,14 @@ void Matchmaking::startMatchmaking()
 	std::string err = response.value("error", "");
 	if (err.length() > 0)
 	{
-		ERROR_LOG(BRAWLBACK, "[Matchmaking] Received error from server for create ticket");
+		ERROR_LOG_FMT(BRAWLBACK, "[Matchmaking] Received error from server for create ticket");
 		m_state = ProcessState::ERROR_ENCOUNTERED;
 		m_errorMsg = err;
 		return;
 	}
 
 	m_state = ProcessState::MATCHMAKING;
-	ERROR_LOG(BRAWLBACK, "[Matchmaking] Request ticket success");
+	ERROR_LOG_FMT(BRAWLBACK, "[Matchmaking] Request ticket success");
 }
 
 void Matchmaking::handleConnecting()
@@ -516,13 +516,13 @@ void Matchmaking::handleMatchmaking()
 	int rcvRes = receiveMessage(getResp, 2000);
 	if (rcvRes == -1)
 	{
-		INFO_LOG(BRAWLBACK, "[Matchmaking] Have not yet received assignment");
+		INFO_LOG_FMT(BRAWLBACK, "[Matchmaking] Have not yet received assignment");
 		return;
 	}
 	else if (rcvRes != 0)
 	{
 		// Right now the only other code is -2 meaning the server died probably?
-		ERROR_LOG(BRAWLBACK, "[Matchmaking] Lost connection to the mm server");
+		ERROR_LOG_FMT(BRAWLBACK, "[Matchmaking] Lost connection to the mm server");
 		m_state = ProcessState::ERROR_ENCOUNTERED;
 		m_errorMsg = "Lost connection to the mm server";
 		return;
@@ -531,7 +531,7 @@ void Matchmaking::handleMatchmaking()
 	std::string respType = getResp["type"];
 	if (respType != MmMessageType::GET_TICKET_RESP)
 	{
-		ERROR_LOG(BRAWLBACK, "[Matchmaking] Received incorrect response for get ticket");
+		ERROR_LOG_FMT(BRAWLBACK, "[Matchmaking] Received incorrect response for get ticket");
 		m_state = ProcessState::ERROR_ENCOUNTERED;
 		m_errorMsg = "Invalid response when getting mm status";
 		return;
@@ -548,7 +548,7 @@ void Matchmaking::handleMatchmaking()
 			//    latestVersion); // Force latest version for people whose file updates dont work
 		}
 
-		ERROR_LOG(BRAWLBACK, "[Matchmaking] Received error from server for get ticket");
+		ERROR_LOG_FMT(BRAWLBACK, "[Matchmaking] Received error from server for get ticket");
 		m_state = ProcessState::ERROR_ENCOUNTERED;
 		m_errorMsg = err;
 		return;
@@ -600,7 +600,7 @@ void Matchmaking::handleMatchmaking()
 
 			auto lanIp = el.value("ipAddressLan", "1.1.1.1:123");
 
-			WARN_LOG(BRAWLBACK, "LAN IP: %s", lanIp.c_str());
+			WARN_LOG_FMT(BRAWLBACK, "LAN IP: {}", lanIp);
 
 			if (exIpParts[0] != localExternalIp || lanIp.empty())
 			{
@@ -658,7 +658,7 @@ void Matchmaking::handleMatchmaking()
 	terminateMmConnection();
 
 	m_state = ProcessState::OPPONENT_CONNECTING;
-	ERROR_LOG(BRAWLBACK, "[Matchmaking] Opponent found. isDecider: %s", m_isHost ? "true" : "false");
+	ERROR_LOG_FMT(BRAWLBACK, "[Matchmaking] Opponent found. isDecider: {}", m_isHost ? "true" : "false");
 }
 
 int Matchmaking::LocalPlayerIndex()
@@ -679,10 +679,10 @@ std::vector<u16> Matchmaking::GetStages()
 u16 Matchmaking::GetRandomStage() {
     int randStageIdx = generator() % m_allowedStages.size();
     for (u16 stageID : m_allowedStages) {
-        INFO_LOG(BRAWLBACK, "Allowed stage id: %u\n", (unsigned int)stageID);
+        INFO_LOG_FMT(BRAWLBACK, "Allowed stage id: {}\n", (unsigned int)stageID);
     }
-    INFO_LOG(BRAWLBACK, "rand stage idx chosen: %i\n", randStageIdx);
-    INFO_LOG(BRAWLBACK, "rand stage id chosen: %u\n", (unsigned int)m_allowedStages[randStageIdx]);
+    INFO_LOG_FMT(BRAWLBACK, "rand stage idx chosen: {}\n", randStageIdx);
+    INFO_LOG_FMT(BRAWLBACK, "rand stage id chosen: {}\n", (unsigned int)m_allowedStages[randStageIdx]);
     return m_allowedStages[randStageIdx];
 }
 

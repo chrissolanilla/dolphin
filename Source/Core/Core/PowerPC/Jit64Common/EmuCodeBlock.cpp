@@ -19,6 +19,7 @@
 #include "Core/PowerPC/Jit64Common/Jit64PowerPCState.h"
 #include "Core/PowerPC/MMU.h"
 #include "Core/PowerPC/PowerPC.h"
+#include "Core/System.h"
 
 using namespace Gen;
 
@@ -130,22 +131,6 @@ FixupBranch EmuCodeBlock::CheckIfSafeAddress(const OpArg& reg_value, X64Reg reg_
   return J_CC(CC_Z, m_far_code.Enabled());
 }
 
-void EmuCodeBlock::UnsafeLoadRegToReg(X64Reg reg_addr, X64Reg reg_value, int accessSize, s32 offset,
-                                      bool signExtend)
-{
-  OpArg src = MComplex(RMEM, reg_addr, SCALE_1, offset);
-  LoadAndSwap(accessSize, reg_value, src, signExtend);
-}
-
-void EmuCodeBlock::UnsafeLoadRegToRegNoSwap(X64Reg reg_addr, X64Reg reg_value, int accessSize,
-                                            s32 offset, bool signExtend)
-{
-  if (signExtend)
-    MOVSX(32, accessSize, reg_value, MComplex(RMEM, reg_addr, SCALE_1, offset));
-  else
-    MOVZX(32, accessSize, reg_value, MComplex(RMEM, reg_addr, SCALE_1, offset));
-}
-
 void EmuCodeBlock::UnsafeWriteRegToReg(OpArg reg_value, X64Reg reg_addr, int accessSize, s32 offset,
                                        bool swap, MovInfo* info)
 {
@@ -236,7 +221,7 @@ public:
   {
     LoadAddrMaskToReg(8 * sizeof(T), addr, mask);
   }
-  void VisitComplex(const std::function<T(u32)>* lambda) override
+  void VisitComplex(const std::function<T(Core::System&, u32)>* lambda) override
   {
     CallLambda(8 * sizeof(T), lambda);
   }
@@ -285,10 +270,10 @@ private:
     }
   }
 
-  void CallLambda(int sbits, const std::function<T(u32)>* lambda)
+  void CallLambda(int sbits, const std::function<T(Core::System&, u32)>* lambda)
   {
     m_code->ABI_PushRegistersAndAdjustStack(m_registers_in_use, 0);
-    m_code->ABI_CallLambdaC(lambda, m_address);
+    m_code->ABI_CallLambdaPC(lambda, &Core::System::GetInstance(), m_address);
     m_code->ABI_PopRegistersAndAdjustStack(m_registers_in_use, 0);
     MoveOpArgToReg(sbits, R(ABI_RETURN));
   }

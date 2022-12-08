@@ -5,7 +5,6 @@
 
 #include <algorithm>
 #include <array>
-#include <cinttypes>
 #include <deque>
 #include <map>
 #include <memory>
@@ -18,6 +17,7 @@
 #include "Common/CommonTypes.h"
 #include "Common/Logging/Log.h"
 #include "Common/Timer.h"
+#include "Core/Boot/AncastTypes.h"
 #include "Core/Boot/DolReader.h"
 #include "Core/Boot/ElfReader.h"
 #include "Core/CommonTitles.h"
@@ -56,6 +56,7 @@
 #include "Core/IOS/WFS/WFSI.h"
 #include "Core/IOS/WFS/WFSSRV.h"
 #include "Core/PowerPC/PowerPC.h"
+#include "Core/System.h"
 #include "Core/WiiRoot.h"
 
 namespace IOS::HLE
@@ -64,7 +65,6 @@ static std::unique_ptr<EmulationKernel> s_ios;
 
 constexpr u64 ENQUEUE_REQUEST_FLAG = 0x100000000ULL;
 static CoreTiming::EventType* s_event_enqueue;
-static CoreTiming::EventType* s_event_sdio_notify;
 static CoreTiming::EventType* s_event_finish_ppc_bootstrap;
 static CoreTiming::EventType* s_event_finish_ios_boot;
 
@@ -208,6 +208,15 @@ static void ReleasePPC()
   PC = 0x3400;
 }
 
+static void ReleasePPCAncast()
+{
+  Memory::Write_U32(0, 0);
+  // On a real console the Espresso verifies and decrypts the Ancast image,
+  // then jumps to the decrypted ancast body.
+  // The Ancast loader already did this, so just jump to the decrypted body.
+  PC = ESPRESSO_ANCAST_LOCATION_VIRT + sizeof(EspressoAncastHeader);
+}
+
 void RAMOverrideForIOSMemoryValues(MemorySetupType setup_type)
 {
   // Don't touch anything if the feature isn't enabled.
@@ -265,7 +274,7 @@ void WriteReturnValue(s32 value, u32 address)
   Memory::Write_U32(static_cast<u32>(value), address);
 }
 
-Kernel::Kernel()
+Kernel::Kernel(IOSC::ConsoleType console_type) : m_iosc(console_type)
 {
   // Until the Wii root and NAND path stuff is entirely managed by IOS and made non-static,
   // using more than one IOS instance at a time is not supported.
@@ -312,7 +321,7 @@ EmulationKernel::EmulationKernel(u64 title_id) : Kernel(title_id)
 
 EmulationKernel::~EmulationKernel()
 {
-  CoreTiming::RemoveAllEvents(s_event_enqueue);
+  Core::System::GetInstance().GetCoreTiming().RemoveAllEvents(s_event_enqueue);
 }
 
 // The title ID is a u64 where the first 32 bits are used for the title type.
@@ -395,11 +404,15 @@ bool Kernel::BootstrapPPC(const std::string& boot_content_path)
   // Reset the PPC and pause its execution until we're ready.
   ResetAndPausePPC();
 
+  if (dol.IsAncast())
+    INFO_LOG_FMT(IOS, "BootstrapPPC: Loading ancast image");
+
   if (!dol.LoadIntoMemory())
     return false;
 
   INFO_LOG_FMT(IOS, "BootstrapPPC: {}", boot_content_path);
-  CoreTiming::ScheduleEvent(ticks, s_event_finish_ppc_bootstrap);
+  Core::System::GetInstance().GetCoreTiming().ScheduleEvent(ticks, s_event_finish_ppc_bootstrap,
+                                                            dol.IsAncast());
   return true;
 }
 
@@ -474,16 +487,21 @@ bool Kernel::BootIOS(const u64 ios_title_id, HangPPC hang_ppc, const std::string
     ResetAndPausePPC();
 
   if (Core::IsRunningAndStarted())
-    CoreTiming::ScheduleEvent(GetIOSBootTicks(GetVersion()), s_event_finish_ios_boot, ios_title_id);
+  {
+    Core::System::GetInstance().GetCoreTiming().ScheduleEvent(
+        GetIOSBootTicks(GetVersion()), s_event_finish_ios_boot, ios_title_id);
+  }
   else
+  {
     FinishIOSBoot(ios_title_id);
+  }
 
   return true;
 }
 
 void Kernel::InitIPC()
 {
-  if (s_ios == nullptr)
+  if (!Core::IsRunning())
     return;
 
   INFO_LOG_FMT(IOS, "IPC initialised.");
@@ -515,7 +533,7 @@ void Kernel::AddStaticDevices()
 
   // OH1 (Bluetooth)
   AddDevice(std::make_unique<DeviceStub>(*this, "/dev/usb/oh1"));
-  if (!SConfig::GetInstance().m_bt_passthrough_enabled)
+  if (!Config::Get(Config::MAIN_BLUETOOTH_PASSTHROUGH_ENABLED))
     AddDevice(std::make_unique<BluetoothEmuDevice>(*this, "/dev/usb/oh1/57e/305"));
   else
     AddDevice(std::make_unique<BluetoothRealDevice>(*this, "/dev/usb/oh1/57e/305"));
@@ -605,7 +623,8 @@ std::shared_ptr<Device> EmulationKernel::GetDeviceByName(std::string_view device
 std::optional<IPCReply> Kernel::OpenDevice(OpenRequest& request)
 {
   const s32 new_fd = GetFreeDeviceID();
-  INFO_LOG_FMT(IOS, "Opening {} (mode {}, fd {})", request.path, request.flags, new_fd);
+  INFO_LOG_FMT(IOS, "Opening {} (mode {}, fd {})", request.path, static_cast<u32>(request.flags),
+               new_fd);
   if (new_fd < 0 || new_fd >= IPC_MAX_FDS)
   {
     ERROR_LOG_FMT(IOS, "Couldn't get a free fd, too many open files");
@@ -659,7 +678,7 @@ std::optional<IPCReply> Kernel::HandleIPCCommand(const Request& request)
     return IPCReply{IPC_EINVAL, 550_tbticks};
 
   std::optional<IPCReply> ret;
-  const u64 wall_time_before = Common::Timer::GetTimeUs();
+  const u64 wall_time_before = Common::Timer::NowUs();
 
   switch (request.command)
   {
@@ -683,12 +702,12 @@ std::optional<IPCReply> Kernel::HandleIPCCommand(const Request& request)
     ret = device->IOCtlV(IOCtlVRequest{request.address});
     break;
   default:
-    ASSERT_MSG(IOS, false, "Unexpected command: %x", request.command);
+    ASSERT_MSG(IOS, false, "Unexpected command: {:#x}", static_cast<u32>(request.command));
     ret = IPCReply{IPC_EINVAL, 978_tbticks};
     break;
   }
 
-  const u64 wall_time_after = Common::Timer::GetTimeUs();
+  const u64 wall_time_after = Common::Timer::NowUs();
   constexpr u64 BLOCKING_IPC_COMMAND_THRESHOLD_US = 2000;
   if (wall_time_after - wall_time_before > BLOCKING_IPC_COMMAND_THRESHOLD_US)
   {
@@ -708,10 +727,12 @@ void Kernel::ExecuteIPCCommand(const u32 address)
     return;
 
   // Ensure replies happen in order
-  const s64 ticks_until_last_reply = m_last_reply_time - CoreTiming::GetTicks();
+  auto& system = Core::System::GetInstance();
+  auto& core_timing = system.GetCoreTiming();
+  const s64 ticks_until_last_reply = m_last_reply_time - core_timing.GetTicks();
   if (ticks_until_last_reply > 0)
     result->reply_delay_ticks += ticks_until_last_reply;
-  m_last_reply_time = CoreTiming::GetTicks() + result->reply_delay_ticks;
+  m_last_reply_time = core_timing.GetTicks() + result->reply_delay_ticks;
 
   EnqueueIPCReply(request, result->return_value, result->reply_delay_ticks);
 }
@@ -722,7 +743,8 @@ void Kernel::EnqueueIPCRequest(u32 address)
   // Based on hardware tests, IOS takes between 5µs and 10µs to acknowledge an IPC request.
   // Console 1: 456 TB ticks before ACK
   // Console 2: 658 TB ticks before ACK
-  CoreTiming::ScheduleEvent(500_tbticks, s_event_enqueue, address | ENQUEUE_REQUEST_FLAG);
+  Core::System::GetInstance().GetCoreTiming().ScheduleEvent(500_tbticks, s_event_enqueue,
+                                                            address | ENQUEUE_REQUEST_FLAG);
 }
 
 // Called to send a reply to an IOS syscall
@@ -734,7 +756,8 @@ void Kernel::EnqueueIPCReply(const Request& request, const s32 return_value, s64
   Memory::Write_U32(request.command, request.address + 8);
   // IOS also overwrites the command type with the reply type.
   Memory::Write_U32(IPC_REPLY, request.address);
-  CoreTiming::ScheduleEvent(cycles_in_future, s_event_enqueue, request.address, from);
+  Core::System::GetInstance().GetCoreTiming().ScheduleEvent(cycles_in_future, s_event_enqueue,
+                                                            request.address, from);
 }
 
 void Kernel::HandleIPCEvent(u64 userdata)
@@ -790,14 +813,6 @@ void Kernel::UpdateWantDeterminism(const bool new_want_determinism)
     device.second->UpdateWantDeterminism(new_want_determinism);
 }
 
-void Kernel::SDIO_EventNotify()
-{
-  // TODO: Potential race condition: If IsRunning() becomes false after
-  // it's checked, an event may be scheduled after CoreTiming shuts down.
-  if (SConfig::GetInstance().bWii && Core::IsRunning())
-    CoreTiming::ScheduleEvent(0, s_event_sdio_notify, 0, CoreTiming::FromThread::NON_CPU);
-}
-
 void Kernel::DoState(PointerWrap& p)
 {
   p.Do(m_request_queue);
@@ -817,7 +832,7 @@ void Kernel::DoState(PointerWrap& p)
   for (const auto& entry : m_device_map)
     entry.second->DoState(p);
 
-  if (p.GetMode() == PointerWrap::MODE_READ)
+  if (p.IsReadMode())
   {
     for (u32 i = 0; i < IPC_MAX_FDS; i++)
     {
@@ -873,40 +888,41 @@ IOSC& Kernel::GetIOSC()
   return m_iosc;
 }
 
-static void FinishPPCBootstrap(u64 userdata, s64 cycles_late)
+static void FinishPPCBootstrap(Core::System& system, u64 userdata, s64 cycles_late)
 {
-  ReleasePPC();
+  // See Kernel::BootstrapPPC
+  const bool is_ancast = userdata == 1;
+  if (is_ancast)
+    ReleasePPCAncast();
+  else
+    ReleasePPC();
+
   SConfig::OnNewTitleLoad();
   INFO_LOG_FMT(IOS, "Bootstrapping done.");
 }
 
 void Init()
 {
-  s_event_enqueue = CoreTiming::RegisterEvent("IPCEvent", [](u64 userdata, s64) {
-    if (s_ios)
-      s_ios->HandleIPCEvent(userdata);
-  });
+  auto& system = Core::System::GetInstance();
+  auto& core_timing = system.GetCoreTiming();
 
-  s_event_sdio_notify = CoreTiming::RegisterEvent("SDIO_EventNotify", [](u64, s64) {
-    if (!s_ios)
-      return;
-
-    auto sdio_slot0 = s_ios->GetDeviceByName("/dev/sdio/slot0");
-    auto device = static_cast<SDIOSlot0Device*>(sdio_slot0.get());
-    if (device)
-      device->EventNotify();
-  });
+  s_event_enqueue =
+      core_timing.RegisterEvent("IPCEvent", [](Core::System& system, u64 userdata, s64) {
+        if (s_ios)
+          s_ios->HandleIPCEvent(userdata);
+      });
 
   ESDevice::InitializeEmulationState();
 
   s_event_finish_ppc_bootstrap =
-      CoreTiming::RegisterEvent("IOSFinishPPCBootstrap", FinishPPCBootstrap);
+      core_timing.RegisterEvent("IOSFinishPPCBootstrap", FinishPPCBootstrap);
 
-  s_event_finish_ios_boot = CoreTiming::RegisterEvent(
-      "IOSFinishIOSBoot", [](u64 ios_title_id, s64) { FinishIOSBoot(ios_title_id); });
+  s_event_finish_ios_boot =
+      core_timing.RegisterEvent("IOSFinishIOSBoot", [](Core::System& system, u64 ios_title_id,
+                                                       s64) { FinishIOSBoot(ios_title_id); });
 
   DIDevice::s_finish_executing_di_command =
-      CoreTiming::RegisterEvent("FinishDICommand", DIDevice::FinishDICommandCallback);
+      core_timing.RegisterEvent("FinishDICommand", DIDevice::FinishDICommandCallback);
 
   // Start with IOS80 to simulate part of the Wii boot process.
   s_ios = std::make_unique<EmulationKernel>(Titles::SYSTEM_MENU_IOS);
