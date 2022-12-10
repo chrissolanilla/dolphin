@@ -616,7 +616,6 @@ void Matchmaking::handleMatchmaking()
 		}
 	}
 	m_isHost = getResp.value("isHost", false);
-    
 
 	// Get allowed stages. For stage select modes like direct and teams, this will only impact the first map selected
 	m_allowedStages.clear();

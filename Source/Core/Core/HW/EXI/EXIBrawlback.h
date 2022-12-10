@@ -105,11 +105,10 @@ private:
   // -------------------------------
 
   // --- Rollback
-  bool isPredicting;          // if we are using past inputs for this frame or not
-  FrameData predictedInputs;  // predicted inputs from some previous frame
-  u32 framesToAdvance = 1;    // number of "frames" to advance the simulation on this frame
-  int latestConfirmedFrame =
-      0;  // Tracks the last frame where we synchronized the game state with the remote client
+  bool isPredicting; // if we are using past inputs for this frame or not
+  FrameData predictedInputs; // predicted inputs from some previous frame
+  u32 framesToAdvance = 1; // number of "frames" to advance the simulation on this frame
+  int latestConfirmedFrame = 0; // Tracks the last frame where we synchronized the game state with the remote client
 
   void updateSync(s32& localFrame, u8 playerIdx);
   bool shouldRollback(s32 localFrame);
@@ -135,8 +134,8 @@ private:
   // local player input history. Always holds FRAMEDATA_MAX_QUEUE_SIZE of past inputs
   PlayerFrameDataQueue localPlayerFrameData = {};
 
-  // remote player input history (indexes are player indexes). Always holds FRAMEDATA_MAX_QUEUE_SIZE
-  // of past inputs
+
+  // remote player input history (indexes are player indexes). Always holds FRAMEDATA_MAX_QUEUE_SIZE of past inputs
   std::array<PlayerFrameDataQueue, MAX_NUM_PLAYERS> remotePlayerFrameData = {};
   // -------------------------------
 
