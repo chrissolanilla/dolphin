@@ -85,6 +85,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Core\Brawlback\BrawlbackUtility.cpp" />
+    <ClCompile Include="Core\Brawlback\MemRegions.cpp" />
     <ClCompile Include="Core\Brawlback\Netplay\Matchmaking.cpp" />
     <ClCompile Include="Core\Brawlback\Netplay\Netplay.cpp" />
     <ClCompile Include="Core\Brawlback\Savestate.cpp" />
@@ -95,7 +96,7 @@
   <ItemGroup>
     <ClInclude Include="Core\Brawlback\BrawlbackUtility.h" />
     <ClInclude Include="Core\Brawlback\Brawltypes.h" />
-    <ClInclude Include="Core\Brawlback\include\brawlback-common\BBConst.h" />
+    <ClInclude Include="Core\Brawlback\include\brawlback-common\BrawlbackConstants.h" />
     <ClInclude Include="Core\Brawlback\include\brawlback-common\BrawlbackPad.h" />
     <ClInclude Include="Core\Brawlback\include\brawlback-common\ExiStructures.h" />
     <ClInclude Include="Core\Brawlback\include\brawlback-common\FrameData.h" />
