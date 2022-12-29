@@ -17,7 +17,7 @@
 #include "Brawltypes.h"
 #include "Savestate.h"
 #include "brawlback-common/ExiStructures.h"
-#include "brawlback-common/BBConst.h"
+#include "brawlback-common/BrawlbackConstants.h"
 
 // ---
 // mem dumping related
