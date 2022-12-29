@@ -214,6 +214,8 @@ add_library(core
   HW/EXI/EXI_DeviceMic.h
   HW/EXI/EXI.cpp
   HW/EXI/EXI.h
+  HW/EXI/EXIBrawlback.cpp
+  HW/EXI/EXIBrawlback.h
   HW/GBAPad.cpp
   HW/GBAPad.h
   HW/GBAPadEmu.cpp
@@ -524,6 +526,8 @@ add_library(core
   WiiUtils.cpp
   WiiUtils.h
 )
+
+target_include_directories(core PRIVATE Brawlback/include)
 
 if(_M_X86)
   target_sources(core PRIVATE
