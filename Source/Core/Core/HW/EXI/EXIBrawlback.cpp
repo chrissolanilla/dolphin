@@ -19,14 +19,6 @@ std::mutex read_queue_mutex = std::mutex();
 std::mutex remotePadQueueMutex = std::mutex();
 // -------------------------------
 
-template <class T>
-T swap_endian(T in)
-{
-  char* const p = reinterpret_cast<char*>(&in);
-  for (size_t i = 0; i < sizeof(T) / 2; ++i)
-    std::swap(p[i], p[sizeof(T) - i - 1]);
-  return in;
-}
 void writeToFile(std::string filename, uint8_t* ptr, size_t len)
 {
   std::ofstream fp;
@@ -304,9 +296,9 @@ void CEXIBrawlback::handleLocalPadData(u8* data)
   std::memcpy(&playerFramedata, data, sizeof(PlayerFrameData));
   int idx = 0;
   // first 4 bytes are current game frame
-  u32 frame = SlippiUtility::Mem::readWord(data, idx, 999, 0);  // properly switched endianness
+  SwapPlayerFrameDataEndianness(playerFramedata);
+  auto frame = playerFramedata.frame;
   u8 playerIdx = playerFramedata.playerIdx;
-  playerFramedata.frame = frame;  // properly switched endianness
 
   if (frame == GAME_START_FRAME)
   {
@@ -625,7 +617,7 @@ void CEXIBrawlback::handleSendInputs(u32 frame)
   int minAckFrame = this->timeSync->getMinAckFrame(this->numPlayers);
 
   // clamp to current frame to prevent it dropping local inputs that haven't been used yet
-  minAckFrame = MIN(minAckFrame, frame);
+  minAckFrame = MIN<u32>(minAckFrame, frame);
 
   int localPadQueueSize = (int)this->localPlayerFrameData.size();
   if (localPadQueueSize == 0)

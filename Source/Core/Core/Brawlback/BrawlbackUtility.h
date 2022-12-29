@@ -5,6 +5,7 @@
 #include <fstream>
 #include <optional>
 #include <random>
+#include <intrin.h>
 
 #include "Common/FileUtil.h"
 #include "Common/CommonTypes.h"
@@ -16,7 +17,7 @@
 #include "Brawltypes.h"
 #include "Savestate.h"
 #include "brawlback-common/ExiStructures.h"
-
+#include "brawlback-common/BBConst.h"
 
 // ---
 // mem dumping related
@@ -62,6 +63,8 @@ namespace Brawlback {
       CMD_ROLLBACK = 17,
       CMD_FRAMEADVANCE = 18,
 
+      CMD_SAVESTATE_REGION = 22,
+
       // REPLAYS
       CMD_REPLAY_START_REPLAYS_STRUCT = 19,
       CMD_REPLAY_REPLAYS_STRUCT = 20,
@@ -100,6 +103,43 @@ namespace Brawlback {
         bool isPlayerFrameDataEqual(const PlayerFrameData& p1, const PlayerFrameData& p2);
     }
 
+    // https://mklimenko.github.io/english/2018/08/22/robust-endian-swap/
+    template <typename T>
+    T swap_endian(T val)
+    {
+      union U
+      {
+        T val;
+        std::array<std::uint8_t, sizeof(T)> raw;
+      } src, dst;
+
+      src.val = val;
+      std::reverse_copy(src.raw.begin(), src.raw.end(), dst.raw.begin());
+      val = dst.val;
+      return val;
+    }
+
+    inline void SwapPlayerFrameDataEndianness(PlayerFrameData& pfd) {
+        pfd.frame = swap_endian(pfd.frame);
+        pfd.syncData.anim = swap_endian(pfd.syncData.anim);
+        pfd.syncData.locX = swap_endian(pfd.syncData.locX);
+        pfd.syncData.locY = swap_endian(pfd.syncData.locY);
+        pfd.syncData.percent = swap_endian(pfd.syncData.percent);
+        pfd.randomSeed = swap_endian(pfd.randomSeed);
+    }
+    inline void SwapFrameDataEndianness(FrameData& fd) {
+        for (int i = 0; i < MAX_NUM_PLAYERS; i++) {
+            SwapPlayerFrameDataEndianness(fd.playerFrameDatas[i]);
+        }
+        swap_endian(fd.randomSeed);
+    }
+
+    inline void PrintSyncData(const SyncData& data) {
+        INFO_LOG_FMT(
+            BRAWLBACK,
+            "xPos = {}  yPos = {}  facingDir = {}  anim = {}  percent = {}  stocks = {}\n",
+            data.locX, data.locY, (s32)data.facingDir, data.anim, data.percent, (u32)data.stocks);
+    }
 
     // checks if the specified `button` is held down based on the buttonBits bitfield
     bool isButtonPressed(u16 buttonBits, PADButtonBits button);
@@ -130,8 +170,6 @@ namespace Brawlback {
 
     PlayerFrameData* findInPlayerFrameDataQueue(const PlayerFrameDataQueue& queue,
                                                            u32 frame);
-
-    int SavestateChecksum(std::vector<ssBackupLoc>* backupLocs);
 
     inline bool isInputsEqual(const BrawlbackPad& p1, const BrawlbackPad& p2) {
         // TODO: this code is duplicated on the .cpp make it dry or I don't know
@@ -170,10 +208,13 @@ namespace Brawlback {
     }
 
 
-    inline int MAX(int x, int y) { return (((x) > (y)) ? (x) : (y)); }
-    inline int MIN(int x, int y) { return (((x) < (y)) ? (x) : (y)); }
+    template <typename T>
+    inline T MAX(T x, T y) { return (((x) > (y)) ? (x) : (y)); }
+    template <typename T>
+    inline T MIN(T x, T y) { return (((x) < (y)) ? (x) : (y)); }
     // 1 if in range (inclusive), 0 otherwise
-    inline int RANGE(int i, int min, int max) { return ((i < min) || (i > max) ? 0 : 1); }
+    template <typename T>
+    inline T RANGE(T i, T min, T max) { return ((i < min) || (i > max) ? 0 : 1); }
 
     namespace Dump {
         void DoMemDumpIteration(int& dump_num);

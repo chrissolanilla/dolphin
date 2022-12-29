@@ -25,11 +25,20 @@ bool TimeSync::shouldStallFrame(s32 currentFrame, s32 latestRemoteFrame, u8 numP
     //OSD::AddTypedMessage(OSD::MessageType::NetPlayBuffer, dispStr.str(), OSD::Duration::NORMAL, OSD::Color::CYAN);
 
     // SLIPPI LOGIC
-    #if ROLLBACK_IMPL
-    if (frameDiff >= MAX_ROLLBACK_FRAMES) {
-    #else
-    if (frameDiff > FRAME_DELAY) { 
-    #endif
+    bool frameDiffCheck;
+    if (ROLLBACK_IMPL)
+    {
+      INFO_LOG_FMT(BRAWLBACK, "ROLLBACK IS ENABLED! FRAMEDIFF: {}", dispStr.str());
+      frameDiffCheck = frameDiff >= MAX_ROLLBACK_FRAMES;
+    }
+    else
+    {
+      INFO_LOG_FMT(BRAWLBACK, "ROLLBACK IS NOT ENABLED! FRAMEDIFF: {}", dispStr.str());
+      frameDiffCheck = frameDiff > FRAME_DELAY;
+    }
+
+    if (frameDiffCheck)
+    {
         this->stallFrameCount += 1;
         if (this->stallFrameCount > 60 * 7) {
             ERROR_LOG_FMT(BRAWLBACK, "CONNECTION STALLED\n");

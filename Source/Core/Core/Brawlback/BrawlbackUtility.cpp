@@ -197,7 +197,10 @@ namespace Brawlback
             std::string csticks = "[CStickX: " + std::to_string(pad.cStickX) + "] [CStickY: " + std::to_string(pad.cStickY) + "]\n";
             inputs.append(csticks);
             
-            std::string triggers = "[LTrigger: " + std::to_string(pad.LTrigger) + "] [RTrigger: " + std::to_string(pad.RTrigger) + "]\n";
+            std::string triggers = "[LTrigger: " + std::to_string(pad.LTrigger) +
+                         "] [RTrigger: " + std::to_string(pad.RTrigger) + "] " +
+                         "[LAnalogue: " + std::to_string(pad.LAnalogue) + "] " +
+                         "[RAnalogue: " + std::to_string(pad.RAnalogue) + "]\n";
             inputs.append(triggers);
             
             std::string buttons = "[Buttons: " + str_half(pad.buttons) + "]\n";
