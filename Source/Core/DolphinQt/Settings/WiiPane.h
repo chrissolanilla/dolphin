@@ -44,6 +44,9 @@ private:
   void BrowseSDSyncFolder();
   void SetSDSyncFolder(const QString& path);
 
+  void BrowseSDSyncTimeFile();
+  void SetSDSyncTimeFile(const QString& path);
+
   // Widgets
   QVBoxLayout* m_main_layout;
 
@@ -64,6 +67,7 @@ private:
   QCheckBox* m_sync_sd_folder_checkbox;
   QLineEdit* m_sd_raw_edit;
   QLineEdit* m_sd_sync_folder_edit;
+  QLineEdit* m_sd_sync_file_edit;
   QPushButton* m_sd_pack_button;
   QPushButton* m_sd_unpack_button;
 
