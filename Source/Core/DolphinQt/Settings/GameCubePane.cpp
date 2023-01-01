@@ -87,17 +87,14 @@ void GameCubePane::CreateWidgets()
 
   for (ExpansionInterface::Slot slot : ExpansionInterface::SLOTS)
   {
-    if (slot != ExpansionInterface::Slot::B)
-    {
-      m_slot_combos[slot] = new QComboBox(device_box);
-      m_slot_combos[slot]->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
-      m_slot_buttons[slot] = new NonDefaultQPushButton(tr("..."), device_box);
-      m_slot_buttons[slot]->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-    }
+    m_slot_combos[slot] = new QComboBox(device_box);
+    m_slot_combos[slot]->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
+    m_slot_buttons[slot] = new NonDefaultQPushButton(tr("..."), device_box);
+    m_slot_buttons[slot]->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
   }
 
+  for (ExpansionInterface::Slot slot : ExpansionInterface::MEMCARD_SLOTS)
   {
-    auto slot = ExpansionInterface::Slot::A;
     m_memcard_path_layouts[slot] = new QHBoxLayout();
     m_memcard_path_labels[slot] = new QLabel(tr("Memory Card Path:"));
     m_memcard_paths[slot] = new QLineEdit();
@@ -165,6 +162,20 @@ void GameCubePane::CreateWidgets()
 
     ++row;
     device_layout->addLayout(m_gci_path_layouts[ExpansionInterface::Slot::A], row, 0, 1, 3);
+
+    ++row;
+    device_layout->addWidget(new QLabel(tr("Slot B:")), row, 0);
+    device_layout->addWidget(m_slot_combos[ExpansionInterface::Slot::B], row, 1);
+    device_layout->addWidget(m_slot_buttons[ExpansionInterface::Slot::B], row, 2);
+
+    ++row;
+    device_layout->addLayout(m_memcard_path_layouts[ExpansionInterface::Slot::B], row, 0, 1, 3);
+
+    ++row;
+    device_layout->addLayout(m_agp_path_layouts[ExpansionInterface::Slot::B], row, 0, 1, 3);
+
+    ++row;
+    device_layout->addLayout(m_gci_path_layouts[ExpansionInterface::Slot::B], row, 0, 1, 3);
 
     ++row;
     device_layout->addWidget(new QLabel(tr("SP1:")), row, 0);
