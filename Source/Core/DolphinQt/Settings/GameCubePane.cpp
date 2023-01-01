@@ -233,6 +233,10 @@ void GameCubePane::CreateWidgets()
   layout->addStretch();
 
   setLayout(layout);
+
+  // BRAWLBACK: disable slot B combo box (should always be set to brawlback)
+  m_slot_combos[ExpansionInterface::Slot::B]->setEnabled(false);
+  m_slot_combos[ExpansionInterface::Slot::B]->setToolTip(tr("Setting locked in this fork of Dolphin"));
 }
 
 void GameCubePane::ConnectWidgets()
