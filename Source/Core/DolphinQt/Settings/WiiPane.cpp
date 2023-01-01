@@ -216,7 +216,6 @@ void WiiPane::CreateSDCard()
     ++row;
   }
 
-  //TODO: only show these options to developers (maybe make checkbox for "show developer options")
   {
     auto hlayout = new QHBoxLayout;
     m_sd_sync_file_edit =
@@ -460,15 +459,14 @@ void WiiPane::SetSDSyncFolder(const QString& path)
 
 void WiiPane::BrowseSDSyncTimeFile()
 {
-  QString file = QDir::toNativeSeparators(DolphinFileDialog::getSaveFileName(
-      this,
-      tr("Select a File to track timestamp for syncing SD image"),
-      {},{},nullptr,
+  const auto file = QDir::toNativeSeparators(DolphinFileDialog::getSaveFileName(
+      this, tr("Select a File to track timestamp for syncing SD image"), {}, {}, nullptr,
       QFileDialog::Option::DontConfirmOverwrite));
 
-
   if (!file.isEmpty())
+  {
     SetSDSyncTimeFile(file);
+  }
 }
 
 void WiiPane::SetSDSyncTimeFile(const QString& path)
