@@ -173,6 +173,10 @@ const Info<bool>& GetInfoForSimulateKonga(int channel)
 const Info<bool> MAIN_WII_SD_CARD{{System::Main, "Core", "WiiSDCard"}, true};
 const Info<bool> MAIN_WII_SD_CARD_ENABLE_FOLDER_SYNC{
     {System::Main, "Core", "WiiSDCardEnableFolderSync"}, false};
+
+const Info<std::string> MAIN_WII_SD_SYNC_TIME_FILE{{System::Main, "Core", "WiiSDSyncTimeFile"}, ""};
+const Info<s64> MAIN_WII_SD_LAST_SYNC_TIME{{System::Main, "Core", "WiiSDLastSyncTime"}, 0};
+
 const Info<bool> MAIN_WII_KEYBOARD{{System::Main, "Core", "WiiKeyboard"}, false};
 const Info<bool> MAIN_WIIMOTE_CONTINUOUS_SCANNING{
     {System::Main, "Core", "WiimoteContinuousScanning"}, false};
