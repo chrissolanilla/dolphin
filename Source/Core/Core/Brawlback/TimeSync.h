@@ -3,6 +3,8 @@
 #include "BrawlbackUtility.h"
 #include "Core/Brawlback/Netplay/Netplay.h"
 
+constexpr float MS_IN_FRAME = 1000 / 60;
+constexpr s32 USEC_IN_FRAME = MS_IN_FRAME * 1000;
 
 namespace Brawlback {
 class TimeSync {
