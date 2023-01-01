@@ -311,6 +311,8 @@ add_executable(dolphin-emu
   Settings/AdvancedPane.h
   Settings/AudioPane.cpp
   Settings/AudioPane.h
+  Settings/BrawlbackPane.cpp
+  Settings/BrawlbackPane.h
   Settings/BroadbandAdapterSettingsDialog.cpp
   Settings/BroadbandAdapterSettingsDialog.h
   Settings/GameCubePane.cpp

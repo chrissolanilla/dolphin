@@ -15,6 +15,8 @@ TimeSync::TimeSync() {
 
 }
 
+constexpr auto USEC_IN_FRAME = 1'000'000 / 60;
+
 bool TimeSync::shouldStallFrame(s32 currentFrame, s32 latestRemoteFrame, u8 numPlayers) {
     if (this->isConnectionStalled) return false;
 

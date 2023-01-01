@@ -66,18 +66,26 @@ Dolphin can only be installed on devices that satisfy the above requirements. At
 
 ## Building for Windows
 
-Use the solution file `Source/dolphin-emu.sln` to build Dolphin on Windows.
-Visual Studio 2022 17.4.0 or later is a hard requirement. Other compilers might be
-able to build Dolphin on Windows but have not been tested and are not
-recommended to be used. Git and Windows 11 SDK must be installed when building.
-
 Make sure to pull submodules before building:
 ```sh
 git submodule update --init
 ```
 
+### Visual Studio
+
+Use the solution file `Source/dolphin-emu.sln` to build Dolphin on Windows.
+Visual Studio 2022 17.4.0 or later is a hard requirement. Other compilers might be
+able to build Dolphin on Windows but have not been tested and are not
+recommended to be used. Git and Windows 11 SDK must be installed when building.
+
 The "Release" solution configuration includes performance optimizations for the best user experience but complicates debugging Dolphin.
 The "Debug" solution configuration is significantly slower, more verbose and less permissive but makes debugging Dolphin easier.
+
+### CMake
+
+Should be able to build with cmake using editor of your choice (CLion, VS Code, etc.)
+
+An error may be encountered when cmake tries to find Qt. To fix, add `-DCMAKE_PREFIX_PATH=<path to repo>/Externals/Qt/Qt6.3.0/x64/lib/cmake/` to your cmake command. (replace <path to repo> with actual path)
 
 ## Building for Linux and macOS
 

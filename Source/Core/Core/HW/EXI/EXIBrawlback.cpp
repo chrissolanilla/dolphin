@@ -294,7 +294,7 @@ void CEXIBrawlback::handleLocalPadData(u8* data)
   this->framesToAdvance = 1;  // reset at beginning of frame
   PlayerFrameData playerFramedata;
   std::memcpy(&playerFramedata, data, sizeof(PlayerFrameData));
-  int idx = 0;
+
   // first 4 bytes are current game frame
   SwapPlayerFrameDataEndianness(playerFramedata);
   auto frame = playerFramedata.frame;
