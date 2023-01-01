@@ -116,6 +116,7 @@ bool IsSettingSaveable(const Config::Location& config_location)
       &Config::MAIN_WIIMOTE_ENABLE_SPEAKER.GetLocation(),
       &Config::MAIN_CONNECT_WIIMOTES_FOR_CONTROLLER_INTERFACE.GetLocation(),
       &Config::MAIN_SLOT_A.GetLocation(),
+      // BRAWLBACK: disable saving slot B (locked to Brawlback EXI device)
       &Config::MAIN_SLOT_B.GetLocation(),
       &Config::MAIN_SERIAL_PORT_1.GetLocation(),
       &Config::GetInfoForSIDevice(0).GetLocation(),
