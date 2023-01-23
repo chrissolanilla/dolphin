@@ -5,7 +5,6 @@
 #include <fstream>
 #include <optional>
 #include <random>
-#include <intrin.h>
 
 #include "Common/FileUtil.h"
 #include "Common/CommonTypes.h"
