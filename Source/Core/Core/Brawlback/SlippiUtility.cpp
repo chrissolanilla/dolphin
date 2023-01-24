@@ -1,5 +1,5 @@
 #include "SlippiUtility.h"
-
+#include <algorithm>
 
 namespace SlippiUtility
 {
