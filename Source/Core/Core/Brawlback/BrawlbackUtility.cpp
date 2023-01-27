@@ -1,3 +1,5 @@
+#include <filesystem>
+
 #include "BrawlbackUtility.h"
 
 #include "VideoCommon/OnScreenDisplay.h"
@@ -161,15 +163,15 @@ namespace Brawlback
         // utilities to use for logging game info & finding desyncs
         using Mem::bit_rep;
 
-        std::string Sync::getSyncLogFilePath() { return File::GetExeDirectory() + "/synclog.txt"; }
+        std::string getSyncLogFilePath() { return File::GetExeDirectory() + "/synclog.txt"; }
         
-        std::string Sync::str_byte(uint8_t byte)
+        std::string str_byte(uint8_t byte)
         {
             std::string ret = std::string(bit_rep[byte >> 4]) + std::string(bit_rep[byte & 0x0F]);
             //INFO_LOG_FMT(BRAWLBACK, "Byte: {}{}\n", bit_rep[byte >> 4], bit_rep[byte & 0x0F]);
             return ret;
         }
-        std::string Sync::str_half(u16 half) {
+        std::string str_half(u16 half) {
             u8 byte0 = half >> 8;
             u8 byte1 = half & 0xFF;
 
@@ -179,7 +181,7 @@ namespace Brawlback
             return ret;
         }
 
-        void Sync::SyncLog(const std::string& msg) {
+        void SyncLog(const std::string& msg) {
             if (!msg.empty()) {
                 std::fstream synclogFile;
                 File::OpenFStream(synclogFile, getSyncLogFilePath(), std::ios_base::out | std::ios_base::app);
@@ -208,7 +210,7 @@ namespace Brawlback
             return inputs;
         }
 
-        std::string Sync::stringifyFramedata(const PlayerFrameData& pfd) {
+        std::string stringifyFramedata(const PlayerFrameData& pfd) {
             std::string ret;
 
             std::string info;
@@ -219,7 +221,7 @@ namespace Brawlback
             return ret;
         }
 
-        std::string Sync::stringifyFramedata(const FrameData& fd, int numPlayers)
+        std::string stringifyFramedata(const FrameData& fd, int numPlayers)
         {
           std::string ret;
           for (int i = 0; i < numPlayers; i++)

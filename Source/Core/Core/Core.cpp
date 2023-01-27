@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cstring>
+#include <filesystem>
 #include <mutex>
 #include <queue>
 #include <utility>
@@ -508,8 +509,9 @@ static void EmuThread(std::unique_ptr<BootParameters> boot, WindowSystemInfo wsi
     const auto last_write_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                                         last_write_timepoint.time_since_epoch())
                                         .count();
-    const auto saved_write_time = Config::Get(Config::MAIN_WII_SD_LAST_SYNC_TIME);
-    if (saved_write_time < last_write_time_ms)
+
+    if (const auto saved_write_time = Config::Get(Config::MAIN_WII_SD_LAST_SYNC_TIME);
+        saved_write_time != last_write_time_ms)
     {
       // sync AND update saved_write_time
       const auto sync_success = Common::SyncSDFolderToSDImage(Core::WantsDeterminism());

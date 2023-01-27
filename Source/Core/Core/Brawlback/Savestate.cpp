@@ -7,7 +7,7 @@
 #include "Common/Thread.h"
 #include "Common/Timer.h"
 #include "VideoCommon/OnScreenDisplay.h"
-#include "common/Logging/Log.h"
+#include "Common/Logging/Log.h"
 
 #include "MemRegions.h"
 
