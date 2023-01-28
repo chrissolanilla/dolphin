@@ -1,0 +1,34 @@
+name: CMake
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  linux:
+    name: Linux
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: 'true'
+
+    - name: Install Dependencies
+      run: |
+           sudo apt install build-essential git cmake ffmpeg libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libevdev-dev libusb-1.0-0-dev libxrandr-dev libxi-dev libpangocairo-1.0-0 qt6-base-private-dev libbluetooth-dev libasound2-dev libpulse-dev libgl1-mesa-dev
+           sudo apt install libudev-dev libsystemd-dev || sudo apt install libeudev-dev
+
+    - name: Configure CMake
+      run: |
+           mkdir build
+           cd build
+           cmake .. -DLINUX_LOCAL_DEV=true -DCMAKE_PREFIX_PATH=./Externals/Qt/Qt6.3.0/x64/lib/cmake/
+
+    - name: Build
+      run: |
+           make -j$(nproc)
+           cp -r ../Data/Sys/ Binaries/
+           touch Binaries/portable.txt
