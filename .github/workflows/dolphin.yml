@@ -1,4 +1,4 @@
-name: CMake
+name: Dolphin
 
 on:
   push:
@@ -7,19 +7,35 @@ on:
     branches: [ "master" ]
 
 jobs:
+  windows:
+      name: Windows
+      runs-on: windows-latest
+
+      steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Dependencies
+        run: |
+             git submodule update --init --recursive
+
+      - name: Build (msbuild)
+        shell: cmd
+        run: |
+             call "C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Auxiliary/Build/vcvarsall.bat" x64
+             msbuild -v:m -m -p:Platform=x64,Configuration=Release Source\dolphin-emu.sln
   linux:
     name: Linux
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v3
-      with:
-        submodules: 'true'
 
     - name: Install Dependencies
       run: |
-           sudo apt install build-essential git cmake ffmpeg libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libevdev-dev libusb-1.0-0-dev libxrandr-dev libxi-dev libpangocairo-1.0-0 qt6-base-private-dev libbluetooth-dev libasound2-dev libpulse-dev libgl1-mesa-dev
-           sudo apt install libudev-dev libsystemd-dev || sudo apt install libeudev-dev
+           git submodule update --init --recursive
+           sudo apt-get update
+           sudo apt install build-essential git cmake ffmpeg libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libevdev-dev libusb-1.0-0-dev libxrandr-dev libxi-dev libpangocairo-1.0-0 qt6-base-private-dev libbluetooth-dev libasound2-dev libpulse-dev libgl1-mesa-dev -y
+           sudo apt install libudev-dev libsystemd-dev -y || sudo apt install libeudev-dev -y
 
     - name: Configure CMake
       run: |
@@ -29,6 +45,7 @@ jobs:
 
     - name: Build
       run: |
+           cd build
            make -j$(nproc)
            cp -r ../Data/Sys/ Binaries/
            touch Binaries/portable.txt
