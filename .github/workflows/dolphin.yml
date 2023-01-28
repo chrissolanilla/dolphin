@@ -7,6 +7,21 @@ on:
     branches: [ "master" ]
 
 jobs:
+  windows:
+      name: Windows
+      runs-on: windows-latest
+
+      steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Dependencies
+        run: |
+             git submodule update --init --recursive
+
+      - name: Configure CMake
+        run: |
+             "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
+             msbuild -v:m -m -p:Platform=x64,Configuration=Release Source\dolphin-emu.sln
   linux:
     name: Linux
     runs-on: ubuntu-latest
