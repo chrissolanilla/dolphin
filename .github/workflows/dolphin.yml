@@ -18,9 +18,9 @@ jobs:
         run: |
              git submodule update --init --recursive
 
-      - name: Configure CMake
+      - name: Build (msbuild)
         run: |
-             "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
+             "C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Auxiliary/Build/vcvarsall.bat" x64
              msbuild -v:m -m -p:Platform=x64,Configuration=Release Source\dolphin-emu.sln
   linux:
     name: Linux
