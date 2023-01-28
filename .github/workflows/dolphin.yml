@@ -23,7 +23,7 @@ jobs:
       run: |
            mkdir build
            cd build
-           cmake ..
+           cmake .. -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15
            
     - name: Build
       run: |
