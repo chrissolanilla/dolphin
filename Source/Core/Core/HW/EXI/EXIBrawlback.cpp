@@ -12,6 +12,7 @@
 #include "Core/ConfigManager.h"
 #include "Core/HW/Memmap.h"
 #include "VideoCommon/OnScreenDisplay.h"
+#include "../MemRegions.h"
 namespace fs = std::filesystem;
 
 // --- Mutexes
@@ -1313,6 +1314,45 @@ void CEXIBrawlback::handleEndOfReplay()
   writeToFile("replay_" + std::to_string(timestamp) + ".brba", ubjson.data(), ubjson.size());
 }
 
+void CEXIBrawlback::handleDumpAll(u8* payload)
+{
+  SavestateMemRegionInfo dumpAll;
+  memcpy(&dumpAll, payload, sizeof(SavestateMemRegionInfo));
+
+  SlippiUtility::Savestate::ssBackupLoc addDumpAll;
+  addDumpAll.data = nullptr;
+  addDumpAll.startAddress = dumpAll.address;
+  addDumpAll.endAddress = dumpAll.address + dumpAll.size;
+  addDumpAll.regionName = std::string((char*)dumpAll.nameBuffer, dumpAll.nameSize);
+
+  MemRegions::memRegions.push_back(addDumpAll);
+}
+
+void CEXIBrawlback::handleAlloc(u8* payload)
+{
+  SavestateMemRegionInfo alloc;
+  memcpy(&alloc, payload, sizeof(SavestateMemRegionInfo));
+
+  SlippiUtility::Savestate::ssBackupLoc addAlloc;
+  addAlloc.data = nullptr;
+  addAlloc.startAddress = alloc.address;
+  addAlloc.endAddress = alloc.address + alloc.size;
+  addAlloc.regionName = std::string((char*)alloc.nameBuffer, alloc.nameSize);
+
+  MemRegions::memRegions.push_back(addAlloc);
+}
+
+void CEXIBrawlback::handleDealloc(u8* payload)
+{
+  SavestateMemRegionInfo dealloc;
+  memcpy(&dealloc, payload, sizeof(SavestateMemRegionInfo));
+
+  PreserveBlock addDealloc;
+  addDealloc.address = dealloc.address;
+  addDealloc.length = dealloc.size;
+  MemRegions::excludeSections.push_back(addDealloc);
+}
+
 // recieve data from game into emulator
 void CEXIBrawlback::DMAWrite(u32 address, u32 size)
 {
@@ -1376,6 +1416,15 @@ void CEXIBrawlback::DMAWrite(u32 address, u32 size)
     break;
   case CMD_REPLAYS_REPLAYS_END:
     handleEndOfReplay();
+    break;
+  case CMD_SEND_DUMPALL:
+    handleDumpAll(payload);
+    break;
+  case CMD_SEND_ALLOCS:
+    handleAlloc(payload);
+    break;
+  case CMD_SEND_DEALLOCS:
+    handleDealloc(payload);
     break;
 
   // just using these CMD's to track frame times lol
