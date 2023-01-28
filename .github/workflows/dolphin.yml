@@ -29,6 +29,7 @@ jobs:
 
     - name: Build
       run: |
+           cd build
            make -j$(nproc)
            cp -r ../Data/Sys/ Binaries/
            touch Binaries/portable.txt
