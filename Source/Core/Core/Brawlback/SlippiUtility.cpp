@@ -17,14 +17,6 @@ namespace SlippiUtility
                                     std::vector<ssBackupLoc>& fullBackupRegions,
                                     std::vector<PreserveBlock>& excludeSections)
     {
-        static std::vector<ssBackupLoc> processedLocs = {};
-
-        // If the processed locations are already computed, just copy them directly
-        if (processedLocs.size() /*&& !shouldForceInit*/)
-        {
-            backupLocs.insert(backupLocs.end(), processedLocs.begin(), processedLocs.end());
-            return;
-        }
 
         // shouldForceInit = false;
 
@@ -38,7 +30,8 @@ namespace SlippiUtility
         std::sort(excludeSections.begin(), excludeSections.end(), cmpFn);
 
         // Initialize backupLocs to full regions
-        backupLocs.insert(backupLocs.end(), fullBackupRegions.begin(), fullBackupRegions.end());
+        backupLocs.clear();
+        backupLocs.insert(backupLocs.begin(), fullBackupRegions.begin(), fullBackupRegions.end());
 
         // Remove exclude sections from backupLocs
         int idx = 0;
@@ -93,9 +86,6 @@ namespace SlippiUtility
                 ipb.length = (u32)newSize;
             }
         }
-
-        processedLocs.clear();
-        processedLocs.insert(processedLocs.end(), backupLocs.begin(), backupLocs.end());
     }
 
 

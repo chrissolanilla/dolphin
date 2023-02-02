@@ -50,7 +50,6 @@ private:
   void handleNumReplays();
   void handleGetStartReplay(u8* payload);
 
-
   template <typename T>
   void SendCmdToGame(EXICommand cmd, T* payload);
 
@@ -101,6 +100,8 @@ private:
   bool hasGameStarted = false;
   GameSettings gameSettings;
   int gameIndex = 0;
+  bool firstDump = true;
+
   // -------------------------------
 
   // --- Time sync

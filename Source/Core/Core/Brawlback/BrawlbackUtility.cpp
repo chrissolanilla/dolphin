@@ -5,10 +5,10 @@
 #include "VideoCommon/OnScreenDisplay.h"
 #include <Core/HW/Memmap.h>
 #include <fmt/format.h>
-
+#include "MemRegions.h"
 namespace Brawlback
 {
-
+    
     bool isButtonPressed(u16 buttonBits, PADButtonBits button)
     {
         return (buttonBits & (PADButtonBits::Z << 8)) != 0;

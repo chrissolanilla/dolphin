@@ -51,19 +51,21 @@ namespace Brawlback {
     {
       CMD_UNKNOWN = 0,
 
-      CMD_ONLINE_INPUTS = 1, // sending inputs from game to emulator
+      CMD_ONLINE_INPUTS = 1,  // sending inputs from game to emulator
       CMD_CAPTURE_SAVESTATE = 2,
       CMD_LOAD_SAVESTATE = 3,
+
+      CMD_SEND_ALLOCS = 30,
+      CMD_SEND_DEALLOCS = 31,
+      CMD_SEND_DUMPALL = 32,
 
       CMD_FIND_OPPONENT = 5,
       CMD_START_MATCH = 13,
       CMD_SETUP_PLAYERS = 14,
-      CMD_FRAMEDATA = 15, // game is requesting inputs for some frame
+      CMD_FRAMEDATA = 15,  // game is requesting inputs for some frame
       CMD_TIMESYNC = 16,
       CMD_ROLLBACK = 17,
       CMD_FRAMEADVANCE = 18,
-
-      CMD_SAVESTATE_REGION = 22,
 
       // REPLAYS
       CMD_REPLAY_START_REPLAYS_STRUCT = 19,
@@ -74,9 +76,7 @@ namespace Brawlback {
       CMD_GET_NUM_REPLAYS = 24,
       CMD_SET_CUR_INDEX = 25,
       CMD_GET_START_REPLAY = 26,
-      CMD_SEND_ALLOCS = 30,
-      CMD_SEND_DEALLOCS = 31,
-      CMD_SEND_DUMPALL = 32,
+
       CMD_MATCH_END = 4,
       CMD_SET_MATCH_SELECTIONS = 6,
 
@@ -121,6 +121,15 @@ namespace Brawlback {
       return val;
     }
 
+    inline void SwapBrawlbackPadDataEndianess(BrawlbackPad& pad)
+    {
+      pad.buttons = swap_endian(pad.buttons);
+      pad.holdButtons = swap_endian(pad.holdButtons);
+      pad.rapidFireButtons = swap_endian(pad.rapidFireButtons);
+      pad.releasedButtons = swap_endian(pad.releasedButtons);
+      pad.newPressedButtons = swap_endian(pad.newPressedButtons);
+    }
+
     inline void SwapPlayerFrameDataEndianness(PlayerFrameData& pfd) {
         pfd.frame = swap_endian(pfd.frame);
         pfd.syncData.anim = swap_endian(pfd.syncData.anim);
@@ -128,6 +137,8 @@ namespace Brawlback {
         pfd.syncData.locY = swap_endian(pfd.syncData.locY);
         pfd.syncData.percent = swap_endian(pfd.syncData.percent);
         pfd.randomSeed = swap_endian(pfd.randomSeed);
+        SwapBrawlbackPadDataEndianess(pfd.pad);
+        SwapBrawlbackPadDataEndianess(pfd.sysPad);
     }
     inline void SwapFrameDataEndianness(FrameData& fd) {
         for (int i = 0; i < MAX_NUM_PLAYERS; i++) {

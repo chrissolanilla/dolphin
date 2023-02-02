@@ -2,6 +2,7 @@
 
 #include "EXIBrawlback.h"
 #include <Core/Brawlback/include/brawlback-common/ExiStructures.h>
+#include <algorithm>
 #include <chrono>
 #include <climits>
 #include <filesystem>
@@ -13,8 +14,9 @@
 #include "Core/HW/Memmap.h"
 #include "VideoCommon/OnScreenDisplay.h"
 #include "../MemRegions.h"
-namespace fs = std::filesystem;
 
+namespace fs = std::filesystem;
+MemRegions* memRegions = new MemRegions();
 // --- Mutexes
 std::mutex read_queue_mutex = std::mutex();
 std::mutex remotePadQueueMutex = std::mutex();
@@ -33,7 +35,48 @@ std::vector<u8> read_vector_from_disk(std::string file_path)
                        std::istreambuf_iterator<char>());
   return data;
 }
-
+bool isIntersect(PreserveBlock a, PreserveBlock b)
+{
+  return std::max(a.address, a.address + a.length) >= std::min(b.address, b.address + b.length);
+}
+void manipulate2(std::vector<PreserveBlock>& a, PreserveBlock y)
+{
+  PreserveBlock x = a.back();
+  a.pop_back();
+  PreserveBlock z = x;
+  x.address = y.address + y.length;
+  z.length = y.address - z.address;
+  if (z.address < z.address + z.length)
+  {
+    a.push_back(z);
+  }
+  if (x.address < x.address + x.length)
+  {
+    a.push_back(x);
+  }
+}
+std::vector<PreserveBlock> removeInterval(std::vector<PreserveBlock>& in, PreserveBlock& t)
+{
+  std::vector<PreserveBlock> ans;
+  size_t n = in.size();
+  for (int i = 0; i < n; i++)
+  {
+    ans.push_back(in[i]);
+    PreserveBlock a;
+    PreserveBlock b;
+    a = ans.back();
+    b = t;
+    if (a.address > b.address)
+    {
+      std::swap(a, b);
+    }
+    if (isIntersect(a, b))
+    {
+      manipulate2(ans, t);
+    }
+  }
+  return ans;
+}
 CEXIBrawlback::CEXIBrawlback()
 {
   INFO_LOG_FMT(BRAWLBACK, "------- {}\n", SConfig::GetInstance().GetGameID());
@@ -269,6 +312,7 @@ PlayerFrameData CreateBlankPlayerFrameData(u32 frame, u8 playerIdx)
   PlayerFrameData dummy_framedata = PlayerFrameData();
   dummy_framedata.frame = frame;
   dummy_framedata.playerIdx = playerIdx;
+  dummy_framedata.syncData = SyncData();
   dummy_framedata.pad = BrawlbackPad();     // empty pad
   dummy_framedata.sysPad = BrawlbackPad();  // empty pad
   return dummy_framedata;
@@ -288,7 +332,7 @@ static int numTimesyncs = 0;
 static int numRollbacks = 0;
 static int synclogFrameTracker = 0;
 
-// `data` is a ptr to a PlayerFrameData struct
+// `data` is a ptr to a FrameData struct
 // this is called every frame at the beginning of the frame
 void CEXIBrawlback::handleLocalPadData(u8* data)
 {
@@ -623,7 +667,7 @@ void CEXIBrawlback::handleSendInputs(u32 frame)
   int localPadQueueSize = (int)this->localPlayerFrameData.size();
   if (localPadQueueSize == 0)
     return;  // no inputs, nothing to send
-  int endIdx = localPadQueueSize - 1 - (this->localPlayerFrameData.back()->frame - minAckFrame);
+  int endIdx = localPadQueueSize-1 - (this->localPlayerFrameData.back()->frame - minAckFrame);
 
   std::vector<PlayerFrameData*> localFramedatas = {};
   // push framedatas from back to front
@@ -1314,10 +1358,17 @@ void CEXIBrawlback::handleEndOfReplay()
   writeToFile("replay_" + std::to_string(timestamp) + ".brba", ubjson.data(), ubjson.size());
 }
 
+void SwapEndianSavestateMemRegionInfo(SavestateMemRegionInfo& memRegion)
+{
+  memRegion.address = swap_endian(memRegion.address);
+  memRegion.size = swap_endian(memRegion.size);
+}
+
 void CEXIBrawlback::handleDumpAll(u8* payload)
 {
   SavestateMemRegionInfo dumpAll;
   memcpy(&dumpAll, payload, sizeof(SavestateMemRegionInfo));
+  SwapEndianSavestateMemRegionInfo(dumpAll);
 
   SlippiUtility::Savestate::ssBackupLoc addDumpAll;
   addDumpAll.data = nullptr;
@@ -1325,13 +1376,22 @@ void CEXIBrawlback::handleDumpAll(u8* payload)
   addDumpAll.endAddress = dumpAll.address + dumpAll.size;
   addDumpAll.regionName = std::string((char*)dumpAll.nameBuffer, dumpAll.nameSize);
 
-  MemRegions::memRegions.push_back(addDumpAll);
+  if (this->firstDump)
+  {
+    memRegions->memRegions.clear();
+    memRegions->excludeSections.clear();
+
+    this->firstDump = false;
+  }
+
+  memRegions->memRegions.push_back(addDumpAll);
 }
 
 void CEXIBrawlback::handleAlloc(u8* payload)
 {
   SavestateMemRegionInfo alloc;
   memcpy(&alloc, payload, sizeof(SavestateMemRegionInfo));
+  SwapEndianSavestateMemRegionInfo(alloc);
 
   SlippiUtility::Savestate::ssBackupLoc addAlloc;
   addAlloc.data = nullptr;
@@ -1339,18 +1399,50 @@ void CEXIBrawlback::handleAlloc(u8* payload)
   addAlloc.endAddress = alloc.address + alloc.size;
   addAlloc.regionName = std::string((char*)alloc.nameBuffer, alloc.nameSize);
 
-  MemRegions::memRegions.push_back(addAlloc);
+  memRegions->memRegions.push_back(addAlloc);
+
+  PreserveBlock removeDealloc;
+  removeDealloc.address = alloc.address;
+  removeDealloc.length = alloc.size;
+
+  memRegions->excludeSections = removeInterval(memRegions->excludeSections, removeDealloc);
+
+  //u64 totalsize = 0;
+  //for (auto& loc : memRegions->memRegions)
+  //{
+  //  totalsize += loc.endAddress - loc.startAddress;
+  //}
+  //double dsize = ((double)totalsize / 1000000.0);
+  //INFO_LOG_FMT(BRAWLBACK, "memRegions total size: {} mb\n", dsize);
 }
 
 void CEXIBrawlback::handleDealloc(u8* payload)
 {
   SavestateMemRegionInfo dealloc;
   memcpy(&dealloc, payload, sizeof(SavestateMemRegionInfo));
+  SwapEndianSavestateMemRegionInfo(dealloc);
 
   PreserveBlock addDealloc;
   addDealloc.address = dealloc.address;
-  addDealloc.length = dealloc.size;
-  MemRegions::excludeSections.push_back(addDealloc);
+
+  u32 startAddress = addDealloc.address;
+  auto it = std::find_if(
+      memRegions->memRegions.begin(), memRegions->memRegions.end(),
+      [&startAddress](const ssBackupLoc& obj) { return obj.startAddress == startAddress; });
+
+  if (it != memRegions->memRegions.end())
+  {
+    auto index = std::distance(memRegions->memRegions.begin(), it);
+    addDealloc.length = memRegions->memRegions[index].endAddress - memRegions->memRegions[index].startAddress;
+    memRegions->excludeSections.push_back(addDealloc);
+  }
+  /*u64 totalsize = 0;
+  for (auto& loc : memRegions->excludeSections)
+  {
+    totalsize += loc.length;
+  }
+  double dsize = ((double)totalsize / 1000000.0);
+  INFO_LOG_FMT(BRAWLBACK, "excludeSections total size: {} mb\n", dsize);*/
 }
 
 // recieve data from game into emulator

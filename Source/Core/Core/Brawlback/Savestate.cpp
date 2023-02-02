@@ -59,25 +59,7 @@ void BrawlbackSavestate::getDolphinState(PointerWrap& p)
 
 void BrawlbackSavestate::initBackupLocs()
 {
-    SlippiInitBackupLocations(this->backupLocs, MemRegions::memRegions, MemRegions::excludeSections);
-
-    // measure total savestate size & display it
-    static bool once = true;
-    if (once) {
-        u64 totalsize = 0;
-        for (auto& loc : this->backupLocs) {
-            u32 size = loc.endAddress-loc.startAddress;
-            double newsize = ((double)size / 1000.0) / 1000.0;
-            INFO_LOG_FMT(BRAWLBACK, "Savestate region: 0x{} - 0x{} : size {} mb   {}\n",
-                         loc.startAddress, loc.endAddress, newsize, loc.regionName);
-            totalsize += size;
-        }
-        double dsize = ((double)totalsize / 1000.0) / 1000.0;
-        std::string savestates_str = "Savestates total size: " + std::to_string(dsize) + " mb\n";
-        OSD::AddTypedMessage(OSD::MessageType::Typeless, savestates_str, OSD::Duration::NORMAL, OSD::Color::GREEN);
-        INFO_LOG_FMT(BRAWLBACK, "Savestates total size: {} mb\n", dsize);
-  }
-  once = false;
+    SlippiInitBackupLocations(this->backupLocs, memRegions->memRegions, memRegions->excludeSections);
 }
 
 typedef std::vector<SlippiUtility::Savestate::ssBackupLoc>::iterator backupLocIterator;
@@ -92,6 +74,13 @@ void captureMemRegions(backupLocIterator start, backupLocIterator end) {
 void BrawlbackSavestate::Capture()
 {
     captureMemRegions(backupLocs.begin(), backupLocs.end());
+    /*u64 totalsize = 0;
+    for (auto& loc : backupLocs)
+    {
+        totalsize += loc.endAddress - loc.startAddress;
+    }
+    double dsize = ((double)totalsize / 1000000.0);
+    INFO_LOG_FMT(BRAWLBACK, "backupLocs total size: {} mb\n", dsize);*/
 }
 
 void BrawlbackSavestate::Load(std::vector<PreserveBlock> blocks)
