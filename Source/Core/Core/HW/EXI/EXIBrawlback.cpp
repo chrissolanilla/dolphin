@@ -14,6 +14,7 @@
 #include "Core/HW/Memmap.h"
 #include "VideoCommon/OnScreenDisplay.h"
 #include "../MemRegions.h"
+#include <regex>
 
 namespace fs = std::filesystem;
 MemRegions* memRegions = new MemRegions();
@@ -1307,7 +1308,7 @@ void CEXIBrawlback::handleReplaysStruct(u8* payload)
   std::memcpy(&replay, payload, sizeof(Replay));
 
   const auto frameName = fmt::format("frame_{}", replay.frameCounter);
-  this->curReplayJson[frameName]["persistentFrameCounter"] = replay.persistentFrameCounter;
+  // this->curReplayJson[frameName]["persistentFrameCounter"] = replay.persistentFrameCounter;
   for (int i = 0; i < replay.numItems; i++)
   {
     auto item = this->curReplayJson[frameName]["items"][i];
@@ -1330,7 +1331,8 @@ void CEXIBrawlback::handleReplaysStruct(u8* payload)
     player["damage"] = replayPlayer.damage;
     player["stockCount"] = replayPlayer.stockCount;
 
-    inputs["attack"] = replayInputs.attack;
+    // Commenting out until replay playback gets merged on master
+    /*inputs["attack"] = replayInputs.attack;
     inputs["cStick"] = replayInputs.cStick;
     inputs["dTaunt"] = replayInputs.dTaunt;
     inputs["jump"] = replayInputs.jump;
@@ -1341,6 +1343,7 @@ void CEXIBrawlback::handleReplaysStruct(u8* payload)
     inputs["sTaunt"] = replayInputs.sTaunt;
     inputs["tapJump"] = replayInputs.tapJump;
     inputs["uTaunt"] = replayInputs.uTaunt;
+    */
 
     position["x"] = replayPosition.xPos;
     position["y"] = replayPosition.yPos;
@@ -1379,12 +1382,21 @@ void CEXIBrawlback::handleDumpAll(u8* payload)
   if (this->firstDump)
   {
     memRegions->memRegions.clear();
-    memRegions->excludeSections.clear();
 
     this->firstDump = false;
   }
-
-  memRegions->memRegions.push_back(addDumpAll);
+  std::regex str_expr("Fighter[1-4]Resoruce(?!2)");
+  if (std::regex_match(addDumpAll.regionName, str_expr))
+  {
+    if (dumpAll.size < 4000000)
+    {
+      memRegions->memRegions.push_back(addDumpAll);
+    }
+  }
+  else
+  {
+    memRegions->memRegions.push_back(addDumpAll);
+  }
 }
 
 void CEXIBrawlback::handleAlloc(u8* payload)
@@ -1407,13 +1419,13 @@ void CEXIBrawlback::handleAlloc(u8* payload)
 
   memRegions->excludeSections = removeInterval(memRegions->excludeSections, removeDealloc);
 
-  //u64 totalsize = 0;
-  //for (auto& loc : memRegions->memRegions)
+  // u64 totalsize = 0;
+  // for (auto& loc : memRegions->memRegions)
   //{
-  //  totalsize += loc.endAddress - loc.startAddress;
-  //}
-  //double dsize = ((double)totalsize / 1000000.0);
-  //INFO_LOG_FMT(BRAWLBACK, "memRegions total size: {} mb\n", dsize);
+  //   totalsize += loc.endAddress - loc.startAddress;
+  // }
+  // double dsize = ((double)totalsize / 1000000.0);
+  // INFO_LOG_FMT(BRAWLBACK, "memRegions total size: {} mb\n", dsize);
 }
 
 void CEXIBrawlback::handleDealloc(u8* payload)
@@ -1433,7 +1445,8 @@ void CEXIBrawlback::handleDealloc(u8* payload)
   if (it != memRegions->memRegions.end())
   {
     auto index = std::distance(memRegions->memRegions.begin(), it);
-    addDealloc.length = memRegions->memRegions[index].endAddress - memRegions->memRegions[index].startAddress;
+    addDealloc.length =
+        memRegions->memRegions[index].endAddress - memRegions->memRegions[index].startAddress;
     memRegions->excludeSections.push_back(addDealloc);
   }
   /*u64 totalsize = 0;
