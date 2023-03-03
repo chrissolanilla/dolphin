@@ -151,6 +151,23 @@ bool Exists(const std::string& path)
   return FileInfo(path).Exists();
 }
 
+// Returns true if the path exists
+std::filesystem::file_time_type LastWriteTime(const std::string& path)
+{
+#ifdef __APPLE__
+    struct stat file_stat;
+    if (stat(path.c_str(), &file_stat) == 0)
+    {
+        auto mod_time = std::chrono::system_clock::from_time_t(file_stat.st_mtime);
+        return std::filesystem::file_time_type::clock::from_time_t(std::chrono::system_clock::to_time_t(mod_time));
+    } else {
+        return std::filesystem::file_time_type::clock::from_time_t(0);
+    }
+#else
+    return std::filesystem::last_write_time(path)
+#endif
+}
+
 // Returns true if the path exists and is a directory
 bool IsDirectory(const std::string& path)
 {
