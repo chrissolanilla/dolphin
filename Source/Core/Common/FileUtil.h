@@ -138,9 +138,6 @@ bool Exists(const std::string& path);
 // Returns true if the path exists and is a directory
 bool IsDirectory(const std::string& path);
 
-// Returns true if the path exists and is a directory
-std::filesystem::file_time_type LastWriteTime(const std::string& path);
-
 // Returns true if the path exists and is a file
 bool IsFile(const std::string& path);
 
