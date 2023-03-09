@@ -1388,7 +1388,7 @@ void CEXIBrawlback::handleDumpAll(u8* payload)
   std::regex str_expr("Fighter[1-4]Resoruce(?!2)");
   if (std::regex_match(addDumpAll.regionName, str_expr))
   {
-    if (dumpAll.size < 1000000)
+    if (dumpAll.size < 3000000)
     {
       memRegions->memRegions.push_back(addDumpAll);
     }
