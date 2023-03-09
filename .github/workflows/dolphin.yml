@@ -1,0 +1,74 @@
+name: Dolphin
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  mac:
+    name: MacOS 12
+    runs-on: macos-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Install Dependencies
+      run: |
+           git submodule update --init --recursive
+           brew install qt6
+    
+    - name: Configure CMake
+      run: |
+           mkdir build
+           cd build
+           cmake .. -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15
+           
+    - name: Build
+      run: |
+           cd build
+           make -j$(nproc)
+           
+  windows:
+      name: Windows
+      runs-on: windows-latest
+
+      steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Dependencies
+        run: git submodule update --init --recursive
+
+      - name: Build (msbuild)
+        shell: cmd
+        run: |
+             call "C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Auxiliary/Build/vcvarsall.bat" x64
+             msbuild -v:m -m -p:Platform=x64,Configuration=Release Source\dolphin-emu.sln
+             
+  linux:
+    name: Linux
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Install Dependencies
+      run: |
+           git submodule update --init --recursive
+           sudo apt-get update
+           sudo apt install build-essential git cmake ffmpeg libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libevdev-dev libusb-1.0-0-dev libxrandr-dev libxi-dev libpangocairo-1.0-0 qt6-base-private-dev libbluetooth-dev libasound2-dev libpulse-dev libgl1-mesa-dev -y
+           sudo apt install libudev-dev libsystemd-dev -y || sudo apt install libeudev-dev -y
+
+    - name: Configure CMake
+      run: |
+           mkdir build
+           cd build
+           cmake .. -DLINUX_LOCAL_DEV=true -DCMAKE_PREFIX_PATH=./Externals/Qt/Qt6.3.0/x64/lib/cmake/
+
+    - name: Build
+      run: |
+           cd build
+           make -j$(nproc)
+           cp -r ../Data/Sys/ Binaries/
+           touch Binaries/portable.txt
