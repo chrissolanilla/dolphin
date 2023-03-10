@@ -33,7 +33,14 @@ jobs:
   windows:
       name: Windows
       runs-on: windows-latest
-
+      strategy:
+        fail-fast: false
+        matrix:
+          build_type: [Test]
+          include:
+            - build_type: Test
+              artifact_name: windows-test
+              build_config: Release
       steps:
       - uses: actions/checkout@v3
 
@@ -79,7 +86,14 @@ jobs:
   linux:
     name: Linux
     runs-on: ubuntu-latest
-
+    strategy:
+        fail-fast: false
+        matrix:
+          build_type: [Test]
+          include:
+            - build_type: Test
+              artifact_name: linux-test
+              build_config: Release
     steps:
     - uses: actions/checkout@v3
 
