@@ -66,7 +66,7 @@ jobs:
              Xcopy /Y /E /I .\Data\Sys .\Binary\x64\Sys
              cd .\Binary\x64\
              fsutil file createnew FIX-VCRUNTIME140-ERROR.txt 0
-             echo "Download and install this: https://aka.ms/vs/16/release/vc_redist.x64.exe" > .\FIX-VCRUNTIME140-ERROR.txt
+             echo "Download and install this: https://aka.ms/vs/17/release/vc_redist.x64.exe" > .\FIX-VCRUNTIME140-ERROR.txt
       - name: "Package ${{ matrix.build_type}} Dolphin"
         working-directory: ${{ github.workspace }}
         run: |
