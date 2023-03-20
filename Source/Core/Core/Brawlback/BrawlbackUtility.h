@@ -55,8 +55,6 @@ namespace Brawlback {
       CMD_CAPTURE_SAVESTATE = 2,
       CMD_LOAD_SAVESTATE = 3,
 
-      CMD_SEND_ALLOCS = 30,
-      CMD_SEND_DEALLOCS = 31,
       CMD_SEND_DUMPALL = 32,
 
       CMD_FIND_OPPONENT = 5,

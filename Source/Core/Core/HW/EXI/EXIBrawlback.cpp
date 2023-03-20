@@ -36,48 +36,7 @@ std::vector<u8> read_vector_from_disk(std::string file_path)
                        std::istreambuf_iterator<char>());
   return data;
 }
-bool isIntersect(PreserveBlock a, PreserveBlock b)
-{
-  return std::max(a.address, a.address + a.length) >= std::min(b.address, b.address + b.length);
-}
-void manipulate2(std::vector<PreserveBlock>& a, PreserveBlock y)
-{
-  PreserveBlock x = a.back();
-  a.pop_back();
-  PreserveBlock z = x;
-  x.address = y.address + y.length;
-  z.length = y.address - z.address;
-  if (z.address < z.address + z.length)
-  {
-    a.push_back(z);
-  }
-  if (x.address < x.address + x.length)
-  {
-    a.push_back(x);
-  }
-}
-std::vector<PreserveBlock> removeInterval(std::vector<PreserveBlock>& in, PreserveBlock& t)
-{
-  std::vector<PreserveBlock> ans;
-  size_t n = in.size();
-  for (int i = 0; i < n; i++)
-  {
-    ans.push_back(in[i]);
-    PreserveBlock a;
-    PreserveBlock b;
-    a = ans.back();
-    b = t;
-    if (a.address > b.address)
-    {
-      std::swap(a, b);
-    }
-    if (isIntersect(a, b))
-    {
-      manipulate2(ans, t);
-    }
-  }
-  return ans;
-}
+
 CEXIBrawlback::CEXIBrawlback()
 {
   INFO_LOG_FMT(BRAWLBACK, "------- {}\n", SConfig::GetInstance().GetGameID());
@@ -1275,7 +1234,7 @@ void CEXIBrawlback::handleEndMatch(u8* payload)
   {
     curl_easy_cleanup(curl);
   }
-
+  this->firstDump = true;
   gameIndex++;
 }
 
@@ -1378,7 +1337,7 @@ void CEXIBrawlback::handleDumpAll(u8* payload)
   addDumpAll.startAddress = dumpAll.address;
   addDumpAll.endAddress = dumpAll.address + dumpAll.size;
   addDumpAll.regionName = std::string((char*)dumpAll.nameBuffer, dumpAll.nameSize);
-
+  INFO_LOG_FMT(BRAWLBACK, "REGION NAME: {}\n", addDumpAll.regionName);
   if (this->firstDump)
   {
     memRegions->memRegions.clear();
@@ -1388,7 +1347,7 @@ void CEXIBrawlback::handleDumpAll(u8* payload)
   std::regex str_expr("Fighter[1-4]Resoruce(?!2)");
   if (std::regex_match(addDumpAll.regionName, str_expr))
   {
-    if (dumpAll.size < 3000000)
+    if (dumpAll.size <= 0x00000080)
     {
       memRegions->memRegions.push_back(addDumpAll);
     }
@@ -1397,65 +1356,6 @@ void CEXIBrawlback::handleDumpAll(u8* payload)
   {
     memRegions->memRegions.push_back(addDumpAll);
   }
-}
-
-void CEXIBrawlback::handleAlloc(u8* payload)
-{
-  SavestateMemRegionInfo alloc;
-  memcpy(&alloc, payload, sizeof(SavestateMemRegionInfo));
-  SwapEndianSavestateMemRegionInfo(alloc);
-
-  SlippiUtility::Savestate::ssBackupLoc addAlloc;
-  addAlloc.data = nullptr;
-  addAlloc.startAddress = alloc.address;
-  addAlloc.endAddress = alloc.address + alloc.size;
-  addAlloc.regionName = std::string((char*)alloc.nameBuffer, alloc.nameSize);
-
-  memRegions->memRegions.push_back(addAlloc);
-
-  PreserveBlock removeDealloc;
-  removeDealloc.address = alloc.address;
-  removeDealloc.length = alloc.size;
-
-  memRegions->excludeSections = removeInterval(memRegions->excludeSections, removeDealloc);
-
-  // u64 totalsize = 0;
-  // for (auto& loc : memRegions->memRegions)
-  //{
-  //   totalsize += loc.endAddress - loc.startAddress;
-  // }
-  // double dsize = ((double)totalsize / 1000000.0);
-  // INFO_LOG_FMT(BRAWLBACK, "memRegions total size: {} mb\n", dsize);
-}
-
-void CEXIBrawlback::handleDealloc(u8* payload)
-{
-  SavestateMemRegionInfo dealloc;
-  memcpy(&dealloc, payload, sizeof(SavestateMemRegionInfo));
-  SwapEndianSavestateMemRegionInfo(dealloc);
-
-  PreserveBlock addDealloc;
-  addDealloc.address = dealloc.address;
-
-  u32 startAddress = addDealloc.address;
-  auto it = std::find_if(
-      memRegions->memRegions.begin(), memRegions->memRegions.end(),
-      [&startAddress](const ssBackupLoc& obj) { return obj.startAddress == startAddress; });
-
-  if (it != memRegions->memRegions.end())
-  {
-    auto index = std::distance(memRegions->memRegions.begin(), it);
-    addDealloc.length =
-        memRegions->memRegions[index].endAddress - memRegions->memRegions[index].startAddress;
-    memRegions->excludeSections.push_back(addDealloc);
-  }
-  /*u64 totalsize = 0;
-  for (auto& loc : memRegions->excludeSections)
-  {
-    totalsize += loc.length;
-  }
-  double dsize = ((double)totalsize / 1000000.0);
-  INFO_LOG_FMT(BRAWLBACK, "excludeSections total size: {} mb\n", dsize);*/
 }
 
 // recieve data from game into emulator
@@ -1524,12 +1424,6 @@ void CEXIBrawlback::DMAWrite(u32 address, u32 size)
     break;
   case CMD_SEND_DUMPALL:
     handleDumpAll(payload);
-    break;
-  case CMD_SEND_ALLOCS:
-    handleAlloc(payload);
-    break;
-  case CMD_SEND_DEALLOCS:
-    handleDealloc(payload);
     break;
 
   // just using these CMD's to track frame times lol

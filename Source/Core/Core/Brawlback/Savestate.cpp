@@ -85,19 +85,6 @@ void BrawlbackSavestate::Capture()
 
 void BrawlbackSavestate::Load(std::vector<PreserveBlock> blocks)
 {
-    // Back up regions of game that should stay the same between savestates
-
-    for (auto it = blocks.begin(); it != blocks.end(); ++it)
-    {
-      if (!preservationMap.count(*it))  // if this PreserveBlock is NOT in our preservationMap
-      {
-        // TODO: Clear preservation map when game ends
-        preservationMap[*it] =
-            std::vector<u8>(it->length);  // init new entry at this PreserveBlock key
-      }
-
-      Memory::CopyFromEmu(&preservationMap[*it][0], it->address, it->length);
-    }
 
   // Restore memory blocks
   for (auto it = backupLocs.begin(); it != backupLocs.end(); ++it)
@@ -117,11 +104,5 @@ void BrawlbackSavestate::Load(std::vector<PreserveBlock> blocks)
     //u8 *ptr = &dolphinSsBackup[0];
     //PointerWrap p(&ptr, PointerWrap::MODE_READ);
     //getDolphinState(p);
-
-    // Restore preservation blocks
-    for (auto it = blocks.begin(); it != blocks.end(); ++it)
-    {
-        Memory::CopyToEmu(it->address, &preservationMap[*it][0], it->length);
-    }
   
 }
