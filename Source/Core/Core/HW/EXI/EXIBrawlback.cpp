@@ -1331,31 +1331,31 @@ void CEXIBrawlback::handleDumpAll(u8* payload)
   SavestateMemRegionInfo dumpAll;
   memcpy(&dumpAll, payload, sizeof(SavestateMemRegionInfo));
   SwapEndianSavestateMemRegionInfo(dumpAll);
-
-  SlippiUtility::Savestate::ssBackupLoc addDumpAll;
-  addDumpAll.data = nullptr;
-  addDumpAll.startAddress = dumpAll.address;
-  addDumpAll.endAddress = dumpAll.address + dumpAll.size;
-  addDumpAll.regionName = std::string((char*)dumpAll.nameBuffer, dumpAll.nameSize);
-  INFO_LOG_FMT(BRAWLBACK, "REGION NAME: {}\n", addDumpAll.regionName);
-  if (this->firstDump)
-  {
-    memRegions->memRegions.clear();
-
-    this->firstDump = false;
-  }
+  std::string nameOfRegion = std::string((char*)dumpAll.nameBuffer, dumpAll.nameSize);
+  PreserveBlock removeRegions;
+  removeRegions.address = dumpAll.address;
+  removeRegions.length = dumpAll.size;
   std::regex str_expr("Fighter[1-4]Resoruce(?!2)");
-  if (std::regex_match(addDumpAll.regionName, str_expr))
+  if (std::regex_match(nameOfRegion, str_expr) && dumpAll.size > 0x00000080)
   {
-    if (dumpAll.size <= 0x00000080)
-    {
-      memRegions->memRegions.push_back(addDumpAll);
-    }
+      memRegions->excludeSections.push_back(removeRegions);
   }
-  else
-  {
-    memRegions->memRegions.push_back(addDumpAll);
-  }
+}
+
+void CEXIBrawlback::handleDumpList(u8* payload)
+{
+  SavestateMemRegionInfo dumpList;
+  memcpy(&dumpList, payload, sizeof(SavestateMemRegionInfo));
+  SwapEndianSavestateMemRegionInfo(dumpList);
+
+  SlippiUtility::Savestate::ssBackupLoc addDumpList;
+  addDumpList.data = nullptr;
+  addDumpList.startAddress = dumpList.address;
+  addDumpList.endAddress = dumpList.address + dumpList.size;
+  INFO_LOG_FMT(BRAWLBACK, "START DUMP LIST: {:#x}\nEND DUMP LIST: {:#x}\n", addDumpList.startAddress, addDumpList.endAddress);
+  addDumpList.regionName = std::string((char*)dumpList.nameBuffer, dumpList.nameSize);
+
+  memRegions->memRegions.push_back(addDumpList);
 }
 
 // recieve data from game into emulator
@@ -1424,6 +1424,9 @@ void CEXIBrawlback::DMAWrite(u32 address, u32 size)
     break;
   case CMD_SEND_DUMPALL:
     handleDumpAll(payload);
+    break;
+  case CMD_SEND_DUMPLIST:
+    handleDumpList(payload);
     break;
 
   // just using these CMD's to track frame times lol
