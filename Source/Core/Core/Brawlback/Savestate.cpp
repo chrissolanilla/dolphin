@@ -74,13 +74,13 @@ void captureMemRegions(backupLocIterator start, backupLocIterator end) {
 void BrawlbackSavestate::Capture()
 {
     captureMemRegions(backupLocs.begin(), backupLocs.end());
-    /*u64 totalsize = 0;
+    u64 totalsize = 0;
     for (auto& loc : backupLocs)
     {
         totalsize += loc.endAddress - loc.startAddress;
     }
     double dsize = ((double)totalsize / 1000000.0);
-    INFO_LOG_FMT(BRAWLBACK, "backupLocs total size: {} mb\n", dsize);*/
+    INFO_LOG_FMT(BRAWLBACK, "backupLocs total size: {} mb\n", dsize);
 }
 
 void BrawlbackSavestate::Load(std::vector<PreserveBlock> blocks)

@@ -1331,14 +1331,28 @@ void CEXIBrawlback::handleDumpAll(u8* payload)
   SavestateMemRegionInfo dumpAll;
   memcpy(&dumpAll, payload, sizeof(SavestateMemRegionInfo));
   SwapEndianSavestateMemRegionInfo(dumpAll);
-  std::string nameOfRegion = std::string((char*)dumpAll.nameBuffer, dumpAll.nameSize);
-  PreserveBlock removeRegions;
-  removeRegions.address = dumpAll.address;
-  removeRegions.length = dumpAll.size;
-  std::regex str_expr("Fighter[1-4]Resoruce(?!2)");
-  if (std::regex_match(nameOfRegion, str_expr) && dumpAll.size > 0x00000080)
+
+  if(dumpAll.firstDump)
   {
-      memRegions->excludeSections.push_back(removeRegions);
+    memRegions->memRegions.clear();
+  }
+
+  SlippiUtility::Savestate::ssBackupLoc addDumpAll;
+  addDumpAll.data = nullptr;
+  addDumpAll.startAddress = dumpAll.address;
+  addDumpAll.endAddress = dumpAll.address + dumpAll.size;
+  addDumpAll.regionName = std::string((char*)dumpAll.nameBuffer, dumpAll.nameSize);
+
+  if (addDumpAll.regionName == "Fighter1Resoruce" || addDumpAll.regionName == "Fighter2Resoruce")
+  {
+    if (dumpAll.size <= 128)
+    {
+      memRegions->memRegions.push_back(addDumpAll);
+    }
+  }
+  else
+  {
+    memRegions->memRegions.push_back(addDumpAll);
   }
 }
 
