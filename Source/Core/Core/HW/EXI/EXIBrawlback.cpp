@@ -35,7 +35,15 @@ std::vector<u8> read_vector_from_disk(std::string file_path)
                        std::istreambuf_iterator<char>());
   return data;
 }
+bool inMemMap(SavestateMemRegionInfo& region, std::vector<SavestateMemRegionInfo>& memMap)
+{
+  auto it = std::find_if(memMap.begin(), memMap.end(), [&region](const SavestateMemRegionInfo& obj) {
+        return std::string((char*)region.nameBuffer, region.nameSize) ==
+               std::string((char*)obj.nameBuffer, obj.nameSize);
+      });
 
+  return it != memMap.end();
+}
 CEXIBrawlback::CEXIBrawlback()
 {
   INFO_LOG_FMT(BRAWLBACK, "------- {}\n", SConfig::GetInstance().GetGameID());
@@ -1331,11 +1339,6 @@ void CEXIBrawlback::handleDumpAll(u8* payload)
   memcpy(&dumpAll, payload, sizeof(SavestateMemRegionInfo));
   SwapEndianSavestateMemRegionInfo(dumpAll);
 
-  if(dumpAll.firstDump)
-  {
-    memRegions->memRegions.clear();
-  }
-
   SlippiUtility::Savestate::ssBackupLoc addDumpAll;
   addDumpAll.data = nullptr;
   addDumpAll.startAddress = dumpAll.address;
@@ -1359,14 +1362,15 @@ void CEXIBrawlback::handleAlloc(u8* payload)
   SavestateMemRegionInfo alloc;
   memcpy(&alloc, payload, sizeof(SavestateMemRegionInfo));
   SwapEndianSavestateMemRegionInfo(alloc);
-
-  SlippiUtility::Savestate::ssBackupLoc addAlloc;
-  addAlloc.data = nullptr;
-  addAlloc.startAddress = alloc.address;
-  addAlloc.endAddress = alloc.address + alloc.size;
-  addAlloc.regionName = std::string((char*)alloc.nameBuffer, alloc.nameSize);
-
-  memRegions->memRegions.push_back(addAlloc);
+  if (inMemMap(alloc, this->memMap))
+  {
+    SlippiUtility::Savestate::ssBackupLoc addAlloc;
+    addAlloc.data = nullptr;
+    addAlloc.startAddress = alloc.address;
+    addAlloc.endAddress = alloc.address + alloc.size;
+    addAlloc.regionName = std::string((char*)alloc.nameBuffer, alloc.nameSize);
+    memRegions->memRegions.push_back(addAlloc);
+  }
 }
 
 void CEXIBrawlback::handleDealloc(u8* payload)
@@ -1374,17 +1378,26 @@ void CEXIBrawlback::handleDealloc(u8* payload)
   SavestateMemRegionInfo dealloc;
   memcpy(&dealloc, payload, sizeof(SavestateMemRegionInfo));
   SwapEndianSavestateMemRegionInfo(dealloc);
-
-  u32 startAddress = dealloc.address;
-  auto it = std::find_if(
-      memRegions->memRegions.begin(), memRegions->memRegions.end(),
-      [&startAddress](const ssBackupLoc& obj) { return obj.startAddress == startAddress; });
-
-  if (it != memRegions->memRegions.end())
+  if (inMemMap(dealloc, this->memMap))
   {
-    auto index = std::distance(memRegions->memRegions.begin(), it);
-    memRegions->memRegions.erase(memRegions->memRegions.begin() + index);
+    u32 startAddress = dealloc.address;
+    auto it = std::find_if(
+        memRegions->memRegions.begin(), memRegions->memRegions.end(),
+        [&startAddress](const ssBackupLoc& obj) { return obj.startAddress == startAddress; });
+
+    if (it != memRegions->memRegions.end())
+    {
+      auto index = std::distance(memRegions->memRegions.begin(), it);
+      memRegions->memRegions.erase(memRegions->memRegions.begin() + index);
+    }
   }
+}
+void CEXIBrawlback::handleDumpList(u8* payload)
+{
+  SavestateMemRegionInfo dumpList;
+  memcpy(&dumpList, payload, sizeof(SavestateMemRegionInfo));
+  SwapEndianSavestateMemRegionInfo(dumpList);
+  memMap.push_back(dumpList);
 }
 // recieve data from game into emulator
 void CEXIBrawlback::DMAWrite(u32 address, u32 size)
@@ -1458,6 +1471,9 @@ void CEXIBrawlback::DMAWrite(u32 address, u32 size)
     break;
   case CMD_SEND_DEALLOCS:
     handleDealloc(payload);
+    break;
+  case CMD_SEND_DUMPLIST:
+    handleDumpList(payload);
     break;
 
   // just using these CMD's to track frame times lol
