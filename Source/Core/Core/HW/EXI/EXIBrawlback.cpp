@@ -22,7 +22,6 @@ MemRegions* memRegions = new MemRegions();
 std::mutex read_queue_mutex = std::mutex();
 std::mutex remotePadQueueMutex = std::mutex();
 // -------------------------------
-
 void writeToFile(std::string filename, uint8_t* ptr, size_t len)
 {
   std::ofstream fp;
@@ -1343,7 +1342,49 @@ void CEXIBrawlback::handleDumpAll(u8* payload)
   addDumpAll.endAddress = dumpAll.address + dumpAll.size;
   addDumpAll.regionName = std::string((char*)dumpAll.nameBuffer, dumpAll.nameSize);
 
-  memRegions->memRegions.push_back(addDumpAll);
+  if (addDumpAll.regionName == "Fighter1Resoruce" || addDumpAll.regionName == "Fighter2Resoruce")
+  {
+    if (dumpAll.size <= 0x80)
+    {
+      memRegions->memRegions.push_back(addDumpAll);
+    }
+  }
+  else
+  {
+    memRegions->memRegions.push_back(addDumpAll);
+  }
+}
+void CEXIBrawlback::handleAlloc(u8* payload)
+{
+  SavestateMemRegionInfo alloc;
+  memcpy(&alloc, payload, sizeof(SavestateMemRegionInfo));
+  SwapEndianSavestateMemRegionInfo(alloc);
+
+  SlippiUtility::Savestate::ssBackupLoc addAlloc;
+  addAlloc.data = nullptr;
+  addAlloc.startAddress = alloc.address;
+  addAlloc.endAddress = alloc.address + alloc.size;
+  addAlloc.regionName = std::string((char*)alloc.nameBuffer, alloc.nameSize);
+
+  memRegions->memRegions.push_back(addAlloc);
+}
+
+void CEXIBrawlback::handleDealloc(u8* payload)
+{
+  SavestateMemRegionInfo dealloc;
+  memcpy(&dealloc, payload, sizeof(SavestateMemRegionInfo));
+  SwapEndianSavestateMemRegionInfo(dealloc);
+
+  u32 startAddress = dealloc.address;
+  auto it = std::find_if(
+      memRegions->memRegions.begin(), memRegions->memRegions.end(),
+      [&startAddress](const ssBackupLoc& obj) { return obj.startAddress == startAddress; });
+
+  if (it != memRegions->memRegions.end())
+  {
+    auto index = std::distance(memRegions->memRegions.begin(), it);
+    memRegions->memRegions.erase(memRegions->memRegions.begin() + index);
+  }
 }
 // recieve data from game into emulator
 void CEXIBrawlback::DMAWrite(u32 address, u32 size)
@@ -1412,8 +1453,11 @@ void CEXIBrawlback::DMAWrite(u32 address, u32 size)
   case CMD_SEND_DUMPALL:
     handleDumpAll(payload);
     break;
-  case CMD_SEND_DUMPLIST:
-    handleDumpList(payload);
+  case CMD_SEND_ALLOCS:
+    handleAlloc(payload);
+    break;
+  case CMD_SEND_DEALLOCS:
+    handleDealloc(payload);
     break;
 
   // just using these CMD's to track frame times lol

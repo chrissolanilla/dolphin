@@ -80,7 +80,7 @@ void BrawlbackSavestate::Capture()
         totalsize += loc.endAddress - loc.startAddress;
     }
     double dsize = ((double)totalsize / 1000000.0);
-    INFO_LOG_FMT(BRAWLBACK, "backupLocs total size: {} mb\n", dsize);
+    INFO_LOG_FMT(BRAWLBACK, "backupLocs total size: {:.13} mb\n", dsize);
 }
 
 void BrawlbackSavestate::Load(std::vector<PreserveBlock> blocks)
