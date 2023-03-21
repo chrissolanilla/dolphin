@@ -1343,35 +1343,8 @@ void CEXIBrawlback::handleDumpAll(u8* payload)
   addDumpAll.endAddress = dumpAll.address + dumpAll.size;
   addDumpAll.regionName = std::string((char*)dumpAll.nameBuffer, dumpAll.nameSize);
 
-  if (addDumpAll.regionName == "Fighter1Resoruce" || addDumpAll.regionName == "Fighter2Resoruce")
-  {
-    if (dumpAll.size <= 128)
-    {
-      memRegions->memRegions.push_back(addDumpAll);
-    }
-  }
-  else
-  {
-    memRegions->memRegions.push_back(addDumpAll);
-  }
+  memRegions->memRegions.push_back(addDumpAll);
 }
-
-void CEXIBrawlback::handleDumpList(u8* payload)
-{
-  SavestateMemRegionInfo dumpList;
-  memcpy(&dumpList, payload, sizeof(SavestateMemRegionInfo));
-  SwapEndianSavestateMemRegionInfo(dumpList);
-
-  SlippiUtility::Savestate::ssBackupLoc addDumpList;
-  addDumpList.data = nullptr;
-  addDumpList.startAddress = dumpList.address;
-  addDumpList.endAddress = dumpList.address + dumpList.size;
-  INFO_LOG_FMT(BRAWLBACK, "START DUMP LIST: {:#x}\nEND DUMP LIST: {:#x}\n", addDumpList.startAddress, addDumpList.endAddress);
-  addDumpList.regionName = std::string((char*)dumpList.nameBuffer, dumpList.nameSize);
-
-  memRegions->memRegions.push_back(addDumpList);
-}
-
 // recieve data from game into emulator
 void CEXIBrawlback::DMAWrite(u32 address, u32 size)
 {

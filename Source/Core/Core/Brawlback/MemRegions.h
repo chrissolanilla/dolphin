@@ -26,8 +26,6 @@ struct MemRegions
           {0x80663e00, 0x1a4},  // CameraController
           {0x80663b40, 0x198},  // cmAiController
           {0x805b6d20, 0x740},  // gfCameraManager
-          {0x80673460, 0x3D3D40}, // OverlayCommon
-          {0x80c2c860, 0x8E00}, // InfoResource
 
 
       };
