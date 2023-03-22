@@ -35,17 +35,6 @@ std::vector<u8> read_vector_from_disk(std::string file_path)
                        std::istreambuf_iterator<char>());
   return data;
 }
-const char* relevantHeaps = R"(
-        System Effect WiiPad IteamResource InfoResource CommonResource CopyFB Physics
-        ItemInstance Fighter1Resoruce Fighter2Resoruce Fighter1Resoruce2
-        Fighter2Resoruce2 FighterEffect Fighter1Instance Fighter2Instance
-        Fighter3Instance Fighter4Instance FighterTechqniq InfoInstance InfoExtraResource GameGlobal 
-        GlobalMode OverlayCommon Tmp
-    )";
-bool isRelevantHeap(SavestateMemRegionInfo& region)
-{
-  return std::strstr(relevantHeaps, std::string((char*)region.nameBuffer, region.nameSize).c_str()) != nullptr;
-}
 CEXIBrawlback::CEXIBrawlback()
 {
   INFO_LOG_FMT(BRAWLBACK, "------- {}\n", SConfig::GetInstance().GetGameID());
@@ -1364,15 +1353,12 @@ void CEXIBrawlback::handleAlloc(u8* payload)
   SavestateMemRegionInfo alloc;
   memcpy(&alloc, payload, sizeof(SavestateMemRegionInfo));
   SwapEndianSavestateMemRegionInfo(alloc);
-  if (isRelevantHeap(alloc))
-  {
-    SlippiUtility::Savestate::ssBackupLoc addAlloc;
-    addAlloc.data = nullptr;
-    addAlloc.startAddress = alloc.address;
-    addAlloc.endAddress = alloc.address + alloc.size;
-    addAlloc.regionName = std::string((char*)alloc.nameBuffer, alloc.nameSize);
-    memRegions->memRegions.push_back(addAlloc);
-  }
+  SlippiUtility::Savestate::ssBackupLoc addAlloc;
+  addAlloc.data = nullptr;
+  addAlloc.startAddress = alloc.address;
+  addAlloc.endAddress = alloc.address + alloc.size;
+  addAlloc.regionName = std::string((char*)alloc.nameBuffer, alloc.nameSize);
+  memRegions->memRegions.push_back(addAlloc);
 }
 
 void CEXIBrawlback::handleDealloc(u8* payload)
@@ -1380,18 +1366,15 @@ void CEXIBrawlback::handleDealloc(u8* payload)
   SavestateMemRegionInfo dealloc;
   memcpy(&dealloc, payload, sizeof(SavestateMemRegionInfo));
   SwapEndianSavestateMemRegionInfo(dealloc);
-  if (isRelevantHeap(dealloc))
-  {
-    u32 startAddress = dealloc.address;
-    auto it = std::find_if(
-        memRegions->memRegions.begin(), memRegions->memRegions.end(),
-        [&startAddress](const ssBackupLoc& obj) { return obj.startAddress == startAddress; });
+  u32 startAddress = dealloc.address;
+  auto it = std::find_if(
+      memRegions->memRegions.begin(), memRegions->memRegions.end(),
+      [&startAddress](const ssBackupLoc& obj) { return obj.startAddress == startAddress; });
 
-    if (it != memRegions->memRegions.end())
-    {
-      auto index = std::distance(memRegions->memRegions.begin(), it);
-      memRegions->memRegions.erase(memRegions->memRegions.begin() + index);
-    }
+  if (it != memRegions->memRegions.end())
+  {
+    auto index = std::distance(memRegions->memRegions.begin(), it);
+    memRegions->memRegions.erase(memRegions->memRegions.begin() + index);
   }
 }
 // recieve data from game into emulator
