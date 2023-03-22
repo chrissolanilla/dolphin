@@ -102,7 +102,6 @@ private:
   GameSettings gameSettings;
   int gameIndex = 0;
   bool firstDump = true;
-  std::vector<SavestateMemRegionInfo> memMap;
 
   // -------------------------------
 

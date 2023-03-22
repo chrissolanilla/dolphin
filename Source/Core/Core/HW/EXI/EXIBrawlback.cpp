@@ -35,14 +35,16 @@ std::vector<u8> read_vector_from_disk(std::string file_path)
                        std::istreambuf_iterator<char>());
   return data;
 }
-bool inMemMap(SavestateMemRegionInfo& region, std::vector<SavestateMemRegionInfo>& memMap)
+const char* relevantHeaps = R"(
+        System Effect WiiPad IteamResource InfoResource CommonResource CopyFB Physics
+        ItemInstance Fighter1Resoruce Fighter2Resoruce Fighter1Resoruce2
+        Fighter2Resoruce2 FighterEffect Fighter1Instance Fighter2Instance
+        Fighter3Instance Fighter4Instance FighterTechqniq InfoInstance InfoExtraResource GameGlobal 
+        GlobalMode OverlayCommon Tmp
+    )";
+bool isRelevantHeap(SavestateMemRegionInfo& region)
 {
-  auto it = std::find_if(memMap.begin(), memMap.end(), [&region](const SavestateMemRegionInfo& obj) {
-        return std::string((char*)region.nameBuffer, region.nameSize) ==
-               std::string((char*)obj.nameBuffer, obj.nameSize);
-      });
-
-  return it != memMap.end();
+  return std::strstr(relevantHeaps, std::string((char*)region.nameBuffer, region.nameSize).c_str()) != nullptr;
 }
 CEXIBrawlback::CEXIBrawlback()
 {
@@ -1362,7 +1364,7 @@ void CEXIBrawlback::handleAlloc(u8* payload)
   SavestateMemRegionInfo alloc;
   memcpy(&alloc, payload, sizeof(SavestateMemRegionInfo));
   SwapEndianSavestateMemRegionInfo(alloc);
-  if (inMemMap(alloc, this->memMap))
+  if (isRelevantHeap(alloc))
   {
     SlippiUtility::Savestate::ssBackupLoc addAlloc;
     addAlloc.data = nullptr;
@@ -1378,7 +1380,7 @@ void CEXIBrawlback::handleDealloc(u8* payload)
   SavestateMemRegionInfo dealloc;
   memcpy(&dealloc, payload, sizeof(SavestateMemRegionInfo));
   SwapEndianSavestateMemRegionInfo(dealloc);
-  if (inMemMap(dealloc, this->memMap))
+  if (isRelevantHeap(dealloc))
   {
     u32 startAddress = dealloc.address;
     auto it = std::find_if(
@@ -1391,13 +1393,6 @@ void CEXIBrawlback::handleDealloc(u8* payload)
       memRegions->memRegions.erase(memRegions->memRegions.begin() + index);
     }
   }
-}
-void CEXIBrawlback::handleDumpList(u8* payload)
-{
-  SavestateMemRegionInfo dumpList;
-  memcpy(&dumpList, payload, sizeof(SavestateMemRegionInfo));
-  SwapEndianSavestateMemRegionInfo(dumpList);
-  memMap.push_back(dumpList);
 }
 // recieve data from game into emulator
 void CEXIBrawlback::DMAWrite(u32 address, u32 size)
@@ -1471,9 +1466,6 @@ void CEXIBrawlback::DMAWrite(u32 address, u32 size)
     break;
   case CMD_SEND_DEALLOCS:
     handleDealloc(payload);
-    break;
-  case CMD_SEND_DUMPLIST:
-    handleDumpList(payload);
     break;
 
   // just using these CMD's to track frame times lol
