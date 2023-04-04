@@ -1336,18 +1336,9 @@ void CEXIBrawlback::handleDumpAll(u8* payload)
   addDumpAll.endAddress = dumpAll.address + dumpAll.size;
   addDumpAll.regionName = std::string((char*)dumpAll.nameBuffer, dumpAll.nameSize);
 
-  if (addDumpAll.regionName == "Fighter1Resoruce" || addDumpAll.regionName == "Fighter2Resoruce")
-  {
-    if (dumpAll.size <= 0x80)
-    {
-      memRegions->memRegions.push_back(addDumpAll);
-    }
-  }
-  else
-  {
-    memRegions->memRegions.push_back(addDumpAll);
-  }
+  memRegions->memRegions.push_back(addDumpAll);
 }
+
 void CEXIBrawlback::handleAlloc(u8* payload)
 {
   SavestateMemRegionInfo alloc;
