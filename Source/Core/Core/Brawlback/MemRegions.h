@@ -13,15 +13,7 @@ struct MemRegions
   MemRegions() {
     excludeSections = {
         // {start address, size}
-
-        RANGE_TO_SIZE(0x935D0000, 0x935E0000),  // CPP Framework heap (subject to change...??)
-        // might also need the initializer sections(?) where global statics are stored
-        // cpp framework code sections
-        RANGE_TO_SIZE(0x817da5a4, 0x81FFFFFF),
-        RANGE_TO_SIZE(0x8055A600, 0x80563100),
-        RANGE_TO_SIZE(0x805B5200, 0x805B61D0),
-        RANGE_TO_SIZE(0x817CE880, 0x817DA590),
-
+        {0x94000000, 0xF4240},
         {0x80663e00, 0x1a4},  // CameraController
         {0x80663b40, 0x198},  // cmAiController
         {0x805b6d20, 0x740},  // gfCameraManager
@@ -55,7 +47,6 @@ struct MemRegions
     };
 
     memRegions = {
-        {0x805b8a00, 0x805b8a00 + 0x17c, nullptr, "gfTaskScheduler"},
     };
   }
 };

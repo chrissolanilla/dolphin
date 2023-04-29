@@ -57,6 +57,7 @@ namespace Brawlback {
       CMD_SEND_ALLOCS = 30,
       CMD_SEND_DEALLOCS = 31,
       CMD_SEND_DUMPALL = 32,
+      CMD_SEND_FRAMECOUNTERLOC = 33,
 
       CMD_FIND_OPPONENT = 5,
       CMD_START_MATCH = 13,
@@ -122,6 +123,7 @@ namespace Brawlback {
 
     inline void SwapBrawlbackPadDataEndianess(BrawlbackPad& pad)
     {
+      pad._buttons = swap_endian(pad._buttons);
       pad.buttons = swap_endian(pad.buttons);
       pad.holdButtons = swap_endian(pad.holdButtons);
       pad.rapidFireButtons = swap_endian(pad.rapidFireButtons);
@@ -185,15 +187,16 @@ namespace Brawlback {
 
     inline bool isInputsEqual(const BrawlbackPad& p1, const BrawlbackPad& p2) {
         // TODO: this code is duplicated on the .cpp make it dry or I don't know
+        bool _buttons = p1._buttons == p2._buttons;
         bool buttons = p1.buttons == p2.buttons;
         bool holdButtons = p1.holdButtons == p2.holdButtons;
         bool rapidFireButtons = p1.rapidFireButtons == p2.rapidFireButtons;
         bool releasedButtons = p1.releasedButtons == p2.releasedButtons;
         bool newPressedButtons = p1.newPressedButtons == p2.newPressedButtons;
-        bool triggers = p1.LTrigger == p2.LTrigger && p1.RTrigger == p2.RTrigger;
+        bool triggers = p1.LAnalogue == p2.LAnalogue && p1.RAnalogue == p2.RAnalogue;
         bool analogSticks = p1.stickX == p2.stickX && p1.stickY == p2.stickY;
         bool cSticks = p1.cStickX == p2.cStickX && p1.cStickY == p2.cStickY;
-        return buttons && holdButtons && rapidFireButtons && releasedButtons && newPressedButtons && analogSticks && cSticks && triggers;
+        return _buttons && buttons && holdButtons && rapidFireButtons && releasedButtons && newPressedButtons && analogSticks && cSticks && triggers;
 
         //return memcmp(&p1, &p2, sizeof(BrawlbackPad)) == 0;
     }
@@ -209,8 +212,8 @@ namespace Brawlback {
         ret.pad.stickY = (u8)(127-generator() % (127*2));
         ret.pad.cStickX = (u8)(127-generator() % (127*2));
         ret.pad.cStickY = (u8)(127-generator() % (127*2));
-        ret.pad.LTrigger = (u8)(127-generator() % (127*2));
-        ret.pad.RTrigger = (u8)(127-generator() % (127*2));
+        ret.pad.LAnalogue = (u8)(127-generator() % (127*2));
+        ret.pad.RAnalogue = (u8)(127-generator() % (127*2));
         return ret;
     }
 

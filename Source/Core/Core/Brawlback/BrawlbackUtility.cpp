@@ -96,6 +96,7 @@ namespace Brawlback
     {
             //bool frames = p1.frame == p2.frame;
             //bool idxs = p1.playerIdx == p2.playerIdx;
+            bool _buttons = p1.pad._buttons == p2.pad._buttons;
             bool buttons = p1.pad.buttons == p2.pad.buttons;
             bool holdButtons = p1.pad.holdButtons == p2.pad.holdButtons;
             bool rapidFireButtons = p1.pad.rapidFireButtons == p2.pad.rapidFireButtons;
@@ -105,9 +106,9 @@ namespace Brawlback
                           p1.pad.stickY == p2.pad.stickY &&
                           p1.pad.cStickX == p2.pad.cStickX &&
                           p1.pad.cStickY == p2.pad.cStickY;
-            bool triggers = p1.pad.LTrigger == p2.pad.LTrigger &&
-                            p1.pad.RTrigger == p2.pad.RTrigger;
-            return buttons && holdButtons && rapidFireButtons && releasedButtons && newPressedButtons && sticks && triggers;
+            bool triggers = p1.pad.LAnalogue == p2.pad.LAnalogue &&
+                            p1.pad.RAnalogue == p2.pad.RAnalogue;
+            return _buttons && buttons && holdButtons && rapidFireButtons && releasedButtons && newPressedButtons && sticks && triggers;
         }
 
     }
@@ -199,10 +200,8 @@ namespace Brawlback
             std::string csticks = "[CStickX: " + std::to_string(pad.cStickX) + "] [CStickY: " + std::to_string(pad.cStickY) + "]\n";
             inputs.append(csticks);
             
-            std::string triggers = "[LTrigger: " + std::to_string(pad.LTrigger) +
-                         "] [RTrigger: " + std::to_string(pad.RTrigger) + "] " +
-                         "[LAnalogue: " + std::to_string(pad.LAnalogue) + "] " +
-                         "[RAnalogue: " + std::to_string(pad.RAnalogue) + "]\n";
+            std::string triggers = "[LTrigger: " + std::to_string(pad.LAnalogue) +
+                                   "] [RTrigger: " + std::to_string(pad.RAnalogue) + "] ";
             inputs.append(triggers);
             
             std::string buttons = "[Buttons: " + str_half(pad.buttons) + "]\n";

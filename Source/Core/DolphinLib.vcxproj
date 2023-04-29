@@ -97,6 +97,7 @@
     <ClInclude Include="Core\Brawlback\Brawltypes.h" />
     <ClInclude Include="Core\Brawlback\include\brawlback-common\BrawlbackConstants.h" />
     <ClInclude Include="Core\Brawlback\include\brawlback-common\BrawlbackPad.h" />
+    <ClInclude Include="Core\Brawlback\include\brawlback-common\BrawlbackTypes.h" />
     <ClInclude Include="Core\Brawlback\include\brawlback-common\ExiStructures.h" />
     <ClInclude Include="Core\Brawlback\include\brawlback-common\FrameData.h" />
     <ClInclude Include="Core\Brawlback\include\brawlback-common\GameSettings.h" />

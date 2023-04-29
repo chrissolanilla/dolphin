@@ -8,9 +8,8 @@
 #include "Common/Timer.h"
 #include "VideoCommon/OnScreenDisplay.h"
 #include "Common/Logging/Log.h"
-
 #include "MemRegions.h"
-
+#include <sstream>
 #define LOW_BOUND_MEM 0x80000000
 
 // lots of code here is heavily derived from Slippi's Savestates.cpp
@@ -85,7 +84,7 @@ void BrawlbackSavestate::Capture()
 
 void BrawlbackSavestate::Load(std::vector<PreserveBlock> blocks)
 {
-
+  
   // Restore memory blocks
   for (auto it = backupLocs.begin(); it != backupLocs.end(); ++it)
   {
@@ -95,11 +94,10 @@ void BrawlbackSavestate::Load(std::vector<PreserveBlock> blocks)
     //    Memory::CopyToEmu(it->startAddress, it->data, it->endAddress);  // emu -> game
     //}
     // else
-    //{
+    //
     Memory::CopyToEmu(it->startAddress, it->data, size);  // emu -> game
                                                           //}
   }
-
     //// Restore audio
     //u8 *ptr = &dolphinSsBackup[0];
     //PointerWrap p(&ptr, PointerWrap::MODE_READ);

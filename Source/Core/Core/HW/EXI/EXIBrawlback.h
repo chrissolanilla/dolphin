@@ -46,6 +46,7 @@ private:
   void handleDumpAll(u8*);
   void handleAlloc(u8* payload);
   void handleDealloc(u8* payload);
+  void handleFrameCounterLoc(u8* payload);
   void handleDumpList(u8* payload);
   void handleGetNextFrame(u8* payload, int index);
   void handleNumReplays();
@@ -77,7 +78,7 @@ private:
   void ProcessIndividualRemoteFrameData(PlayerFrameData* framedata);
   void ProcessGameSettings(GameSettings* opponentGameSettings);
   void ProcessFrameAck(FrameAck* frameAck);
-  u32 GetLatestRemoteFrame();
+  bu32 GetLatestRemoteFrame();
   ENetHost* server = nullptr;
   std::thread netplay_thread;
   std::unique_ptr<BrawlbackNetplay> netplay;
@@ -112,13 +113,13 @@ private:
   // --- Rollback
   bool isPredicting; // if we are using past inputs for this frame or not
   FrameData predictedInputs; // predicted inputs from some previous frame
-  u32 framesToAdvance = 1; // number of "frames" to advance the simulation on this frame
-  int latestConfirmedFrame = 0; // Tracks the last frame where we synchronized the game state with the remote client
+  bu32 framesToAdvance = 1; // number of "frames" to advance the simulation on this frame
+  bu32 latestConfirmedFrame = 0; // Tracks the last frame where we synchronized the game state with the remote client
 
-  void updateSync(s32& localFrame, u8 playerIdx);
-  bool shouldRollback(s32 localFrame);
-  void LoadState(s32 rollbackFrame);
-  void SaveState(s32 frame);
+  void updateSync(bu32& localFrame, u8 playerIdx);
+  bool shouldRollback(bu32 localFrame);
+  void LoadState(bu32 rollbackFrame);
+  void SaveState(bu32 frame);
 
   // -------------------------------
 
@@ -131,9 +132,9 @@ private:
   // -------------------------------
 
   // --- Framedata (player inputs)
-  void handleSendInputs(u32 frame);
-  PlayerFrameData getLocalInputs(const s32& frame);
-  PlayerFrameData getRemoteInputs(s32& frame, u8 playerIdx);
+  void handleSendInputs(bu32 frame);
+  PlayerFrameData getLocalInputs(const bu32& frame);
+  PlayerFrameData getRemoteInputs(bu32& frame, bu8 playerIdx);
   void storeLocalInputs(PlayerFrameData* localPlayerFramedata);
 
   // local player input history. Always holds FRAMEDATA_MAX_QUEUE_SIZE of past inputs
