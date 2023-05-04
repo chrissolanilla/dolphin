@@ -217,6 +217,7 @@ namespace Brawlback
 
             ret.append(info);
             ret.append(stringifyPad(pfd.pad));
+            ret.append(stringifyPad(pfd.sysPad));
             return ret;
         }
 

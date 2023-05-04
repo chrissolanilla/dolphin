@@ -1347,10 +1347,14 @@ void CEXIBrawlback::handleDumpAll(u8* payload)
   addDumpAll.data = nullptr;
   addDumpAll.startAddress = dumpAll.address;
   addDumpAll.endAddress = dumpAll.address + dumpAll.size;
+  u32 endAddress = addDumpAll.endAddress;
   addDumpAll.regionName = std::string((char*)dumpAll.nameBuffer, dumpAll.nameSize);
-  auto it = std::find_if(
-      memRegions->memRegions.begin(), memRegions->memRegions.end(),
-      [&startAddress](const ssBackupLoc& obj) { return obj.startAddress == startAddress; });
+  auto it =
+      std::find_if(memRegions->memRegions.begin(), memRegions->memRegions.end(),
+                   [&startAddress, &endAddress](const ssBackupLoc& obj) {
+                     return (obj.startAddress >= startAddress && obj.endAddress <= endAddress) ||
+                            (obj.endAddress >= startAddress && obj.endAddress <= endAddress);
+                   });
   if (it == memRegions->memRegions.end())
   {
     memRegions->memRegions.push_back(addDumpAll);
@@ -1367,10 +1371,14 @@ void CEXIBrawlback::handleAlloc(u8* payload)
   addAlloc.startAddress = alloc.address;
   u32 startAddress = alloc.address;
   addAlloc.endAddress = alloc.address + alloc.size;
+  u32 endAddress = addAlloc.endAddress;
   addAlloc.regionName = std::string((char*)alloc.nameBuffer, alloc.nameSize);
   auto it = std::find_if(
       memRegions->memRegions.begin(), memRegions->memRegions.end(),
-      [&startAddress](const ssBackupLoc& obj) { return obj.startAddress == startAddress; });
+                   [&startAddress, &endAddress](const ssBackupLoc& obj) {
+                     return (obj.startAddress >= startAddress && obj.endAddress <= endAddress) ||
+                            (obj.endAddress >= startAddress && obj.endAddress <= endAddress);
+                   });
   if (it == memRegions->memRegions.end())
   {
     memRegions->memRegions.push_back(addAlloc);

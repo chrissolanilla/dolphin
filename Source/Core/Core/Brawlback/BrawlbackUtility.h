@@ -145,7 +145,7 @@ namespace Brawlback {
         for (int i = 0; i < MAX_NUM_PLAYERS; i++) {
             SwapPlayerFrameDataEndianness(fd.playerFrameDatas[i]);
         }
-        swap_endian(fd.randomSeed);
+        fd.randomSeed = swap_endian(fd.randomSeed);
     }
 
     inline void PrintSyncData(const SyncData& data) {

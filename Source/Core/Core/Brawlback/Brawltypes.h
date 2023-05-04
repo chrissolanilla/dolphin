@@ -21,7 +21,7 @@ enum PADButtonBits : u16
 #pragma pack(push, 2)
 union PADButtons
 {
-  unsigned short bits;
+  unsigned int bits;
   /*struct
   {
     unsigned _none : 3;
@@ -46,36 +46,41 @@ union PADButtons
 #pragma pack(push, 4)
 struct gfPadGamecube
 {
-  char _spacer[6];
-  // 0x6
-  PADButtons buttons;
-  char _spacer2[0x30 - 6 - sizeof(PADButtons)];
+  unsigned int _buttons;
+  unsigned int buttons;
+  unsigned int holdButtons;
+  unsigned int rapidFireButtons;
+  unsigned int releasedButtons;
+  unsigned int newPressedButtons;
+  char _spacer2[0x18];
   // 0x30
-  char stickX;
-  char stickY;
-  char cStickX;
-  char cStickY;
-  char LTrigger;
-  char RTrigger;
+  //  TODO: calculate new offset
+  signed char stickX;
+  signed char stickY;
+  signed char cStickX;
+  signed char cStickY;
+  unsigned char LAnalogue;
+  unsigned char RAnalogue;
+  char _spacer5[0x2];
 
-  char _spacer3[0x38 - 0x30 - 6];
   // 0x38
   // 0xFF if not connected, else 0
   bool isNotConnected;
 
-  char _spacer4[0x3C - 0x38 - 1];
+  char _spacer4[0x3];
 
   // 0x3C
-  int type = 0;
+  int type;
 
   gfPadGamecube() {
-      buttons.bits = 0;
+      _buttons = 0;
+      buttons = 0;
       stickX = 0;
       stickY = 0;
       cStickX = 0;
       cStickY = 0;
-      LTrigger = 0;
-      RTrigger = 0;
+      LAnalogue = 0;
+      RAnalogue = 0;
       isNotConnected = 0;
       type = 0;
   }
