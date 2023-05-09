@@ -1178,6 +1178,7 @@ void CEXIBrawlback::handleStartMatch(u8* payload)
 }
 
 #include <curl/curl.h>
+#include <Common/MemoryUtil.h>
 
 void swapGameReportEndian(GameReport& report)
 {
@@ -1357,7 +1358,19 @@ void CEXIBrawlback::handleDumpAll(u8* payload)
                    });
   if (it == memRegions->memRegions.end())
   {
-    memRegions->memRegions.push_back(addDumpAll);
+    if (addDumpAll.regionName == "Fighter1Resoruce" || addDumpAll.regionName == "Fighter2Resoruce")
+    {
+      u8* data = static_cast<u8*>(Common::AllocateAlignedMemory(3, 64));
+      Memory::CopyFromEmuSwapped(data, addDumpAll.startAddress, 3);
+      if (std::string((char*)data, 3) != "ARC")
+      {
+        memRegions->memRegions.push_back(addDumpAll);
+      }
+    }
+    else
+    {
+      memRegions->memRegions.push_back(addDumpAll);
+    }
   }
 }
 
@@ -1381,7 +1394,19 @@ void CEXIBrawlback::handleAlloc(u8* payload)
                    });
   if (it == memRegions->memRegions.end())
   {
-    memRegions->memRegions.push_back(addAlloc);
+    if (addAlloc.regionName == "Fighter1Resoruce" || addAlloc.regionName == "Fighter2Resoruce")
+    {
+      u8* data = static_cast<u8*>(Common::AllocateAlignedMemory(3, 64));
+      Memory::CopyFromEmuSwapped(data, addAlloc.startAddress, 3);
+      if (std::string((char*)data, 3) != "ARC")
+      {
+        memRegions->memRegions.push_back(addAlloc);
+      }
+    }
+    else
+    {
+      memRegions->memRegions.push_back(addAlloc);
+    }
   }
 }
 
