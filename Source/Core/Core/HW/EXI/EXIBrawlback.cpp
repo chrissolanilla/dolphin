@@ -1358,7 +1358,7 @@ void CEXIBrawlback::handleDumpAll(u8* payload)
                    });
   if (it == memRegions->memRegions.end())
   {
-    if (addDumpAll.regionName == "Fighter1Resoruce" || addDumpAll.regionName == "Fighter2Resoruce")
+    if (addDumpAll.regionName == "Fighter1Resoruce" || addDumpAll.regionName == "Fighter2Resoruce" || addDumpAll.regionName == "IteamResource")
     {
       u8* data = static_cast<u8*>(Common::AllocateAlignedMemory(3, 64));
       Memory::CopyFromEmuSwapped(data, addDumpAll.startAddress, 3);
@@ -1394,7 +1394,7 @@ void CEXIBrawlback::handleAlloc(u8* payload)
                    });
   if (it == memRegions->memRegions.end())
   {
-    if (addAlloc.regionName == "Fighter1Resoruce" || addAlloc.regionName == "Fighter2Resoruce")
+    if (addAlloc.regionName == "Fighter1Resoruce" || addAlloc.regionName == "Fighter2Resoruce" || addAlloc.regionName == "IteamResource")
     {
       u8* data = static_cast<u8*>(Common::AllocateAlignedMemory(3, 64));
       Memory::CopyFromEmuSwapped(data, addAlloc.startAddress, 3);
