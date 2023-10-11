@@ -865,13 +865,22 @@ void CEXIBrawlback::ProcessGameSettings(GameSettings* opponentGameSettings)
 
     // copy char into both slots
     mergedGameSettings.playerSettings[1].charID = mergedGameSettings.playerSettings[0].charID;
+    mergedGameSettings.playerSettings[1].charColor = mergedGameSettings.playerSettings[0].charColor;
+    mergedGameSettings.playerSettings[1].rumble = mergedGameSettings.playerSettings[0].rumble;
+    mergedGameSettings.playerSettings[1].colorFileIndex = mergedGameSettings.playerSettings[0].colorFileIndex;
     // copy char from opponent p1 into our p1
     mergedGameSettings.playerSettings[0].charID = opponentGameSettings->playerSettings[0].charID;
+    mergedGameSettings.playerSettings[0].charColor = opponentGameSettings->playerSettings[0].charColor;
+    mergedGameSettings.playerSettings[0].rumble = opponentGameSettings->playerSettings[0].rumble;
+    mergedGameSettings.playerSettings[0].colorFileIndex = opponentGameSettings->playerSettings[0].colorFileIndex;
   }
   else
   {  // is host
     // copy char from opponent's p2 into our p2
     mergedGameSettings.playerSettings[1].charID = opponentGameSettings->playerSettings[1].charID;
+    mergedGameSettings.playerSettings[1].charColor = opponentGameSettings->playerSettings[1].charColor;
+    mergedGameSettings.playerSettings[1].rumble = opponentGameSettings->playerSettings[1].rumble;
+    mergedGameSettings.playerSettings[1].colorFileIndex = opponentGameSettings->playerSettings[1].colorFileIndex;
 
     // set our stage based on the one the other client generated
     mergedGameSettings.stageID = opponentGameSettings->stageID;
@@ -1425,42 +1434,6 @@ void CEXIBrawlback::handleDealloc(u8* payload)
     memRegions->memRegions.erase(it);
   }
 }
-bool isIntersect(PreserveBlock a, PreserveBlock b)
-{
-  return std::max(a.address, a.address + a.length) >= std::min(b.address, b.address + b.length);
-}
-void manipulate2(std::vector<PreserveBlock>& a, PreserveBlock y)
-{
-  PreserveBlock x = a.back();
-  a.pop_back();
-  PreserveBlock z = x;
-  x.address = y.address + y.length;
-  z.length = y.address - z.address;
-  if (z.address < z.address + z.length)
-    a.push_back(z);
-  if (x.address < x.address + x.length)
-    a.push_back(x);
-}
-std::vector<PreserveBlock> removeInterval(std::vector<PreserveBlock>& in, PreserveBlock& t)
-{
-  std::vector<PreserveBlock> ans;
-  std::size_t n = in.size();
-  for (int i = 0; i < n; i++)
-  {
-    ans.push_back(in[i]);
-    PreserveBlock a;
-    PreserveBlock b;
-    a = ans.back();
-    b = t;
-    if (a.address > b.address)
-      std::swap(a, b);
-    if (isIntersect(a, b))
-    {
-      manipulate2(ans, t);
-    }
-  }
-  return ans;
-}
 void CEXIBrawlback::handleFrameCounterLoc(u8* payload)
 {
   bu32 frameCounterLocation;
@@ -1482,7 +1455,15 @@ void CEXIBrawlback::handleFrameCounterLoc(u8* payload)
   PreserveBlock frameCounterLoc;
   frameCounterLoc.address = frameCounterLocationRegion.startAddress - 1;
   frameCounterLoc.length = frameCounterLocationRegion.endAddress - frameCounterLocationRegion.startAddress + 2;
-  memRegions->excludeSections = removeInterval(memRegions->excludeSections, frameCounterLoc);
+  memRegions->excludeSections = Mem::removeInterval(memRegions->excludeSections, frameCounterLoc);
+}
+void CEXIBrawlback::handleCancelMatchmaking()
+{
+  this->matchmaking->CloseMatching();
+  if (this->matchmaking_thread.joinable())
+  {
+    this->matchmaking_thread.join();
+  }
 }
     // recieve data from game into emulator
 void CEXIBrawlback::DMAWrite(u32 address, u32 size)
@@ -1559,6 +1540,9 @@ void CEXIBrawlback::DMAWrite(u32 address, u32 size)
     break;
   case CMD_SEND_FRAMECOUNTERLOC:
     handleFrameCounterLoc(payload);
+    break;
+  case CMD_CANCEL_MATCHMAKING:
+    handleCancelMatchmaking();
     break;
   // just using these CMD's to track frame times lol
   case CMD_TIMER_START:

@@ -156,7 +156,43 @@ namespace Brawlback
             }
         }
 
-
+        
+        bool isIntersect(PreserveBlock a, PreserveBlock b)
+        {
+          return std::max(a.address, a.address + a.length) >= std::min(b.address, b.address + b.length);
+        }
+        void manipulate2(std::vector<PreserveBlock>& a, PreserveBlock y)
+        {
+          PreserveBlock x = a.back();
+          a.pop_back();
+          PreserveBlock z = x;
+          x.address = y.address + y.length;
+          z.length = y.address - z.address;
+          if (z.address < z.address + z.length)
+            a.push_back(z);
+          if (x.address < x.address + x.length)
+            a.push_back(x);
+        }
+        std::vector<PreserveBlock> removeInterval(std::vector<PreserveBlock>& in, PreserveBlock& t)
+        {
+          std::vector<PreserveBlock> ans;
+          std::size_t n = in.size();
+          for (int i = 0; i < n; i++)
+          {
+            ans.push_back(in[i]);
+            PreserveBlock a;
+            PreserveBlock b;
+            a = ans.back();
+            b = t;
+            if (a.address > b.address)
+              std::swap(a, b);
+            if (isIntersect(a, b))
+            {
+              manipulate2(ans, t);
+            }
+          }
+          return ans;
+        }
         
     }
 

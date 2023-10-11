@@ -51,6 +51,7 @@ private:
   void handleGetNextFrame(u8* payload, int index);
   void handleNumReplays();
   void handleGetStartReplay(u8* payload);
+  void handleCancelMatchmaking();
 
   template <typename T>
   void SendCmdToGame(EXICommand cmd, T* payload);

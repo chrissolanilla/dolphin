@@ -67,6 +67,7 @@ public:
   void SetMatchmakeState(ProcessState state);
   bool IsSearching();
   bool IsHost();
+  void CloseMatching();
   u16 GetLocalPort();
 
   std::vector<std::string> GetRemoteIPAddresses();

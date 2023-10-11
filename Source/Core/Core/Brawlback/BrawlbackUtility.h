@@ -58,6 +58,7 @@ namespace Brawlback {
       CMD_SEND_DEALLOCS = 31,
       CMD_SEND_DUMPALL = 32,
       CMD_SEND_FRAMECOUNTERLOC = 33,
+      CMD_CANCEL_MATCHMAKING = 34,
 
       CMD_FIND_OPPONENT = 5,
       CMD_START_MATCH = 13,
@@ -169,6 +170,9 @@ namespace Brawlback {
         }
 
         void fillByteVectorWithBuffer(std::vector<u8>& vec, u8* buf, size_t size);
+        bool isIntersect(PreserveBlock a, PreserveBlock b);
+        void manipulate2(std::vector<PreserveBlock>& a, PreserveBlock y);
+        std::vector<PreserveBlock> removeInterval(std::vector<PreserveBlock>& in, PreserveBlock& t);
     }
     namespace Sync {
         std::string getSyncLogFilePath();

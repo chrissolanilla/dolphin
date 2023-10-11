@@ -48,13 +48,7 @@ Matchmaking::Matchmaking(UserInfo user)
 
 Matchmaking::~Matchmaking()
 {
-	m_state = ProcessState::ERROR_ENCOUNTERED;
-	m_errorMsg = "Matchmaking shut down";
-
-	if (m_matchmakeThread.joinable())
-		m_matchmakeThread.join();
-
-	terminateMmConnection();
+  CloseMatching();
 }
 
 /**
@@ -134,6 +128,17 @@ void Matchmaking::FindMatch(MatchSearchSettings settings)
 	m_errorMsg = "";
 	m_state = ProcessState::INITIALIZING;
 	m_matchmakeThread = std::thread(&Matchmaking::MatchmakeThread, this);
+}
+
+void Matchmaking::CloseMatching()
+{
+  m_state = ProcessState::ERROR_ENCOUNTERED;
+  m_errorMsg = "Matchmaking shut down";
+
+  if (m_matchmakeThread.joinable())
+    m_matchmakeThread.join();
+
+  terminateMmConnection();
 }
 
 Matchmaking::ProcessState Matchmaking::GetMatchmakeState()
