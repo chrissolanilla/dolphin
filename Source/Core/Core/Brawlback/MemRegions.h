@@ -47,7 +47,6 @@ struct MemRegions
     };
 
     memRegions = {
-      {0x817ba5a0, 0x817ca5a0, nullptr, "Syringe"}
     };
   }
 };

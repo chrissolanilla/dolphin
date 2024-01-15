@@ -305,15 +305,14 @@ void CEXIBrawlback::handleLocalPadData(u8* data)
   auto frame = playerFramedata.frame;
   u8 playerIdx = playerFramedata.playerIdx;
 
-  if (frame == GAME_START_FRAME)
+  if (frame == GAME_START_FRAME && !this->hasGameStarted)
   {
     // push framedatas for first few delay frames
     for (int i = GAME_START_FRAME; i < FRAME_DELAY; i++)
     {
-      this->remotePlayerFrameData[playerIdx].push_back(
-          std::make_unique<PlayerFrameData>(CreateBlankPlayerFrameData(i, playerIdx)));
-      this->localPlayerFrameData.push_back(
-          std::make_unique<PlayerFrameData>(CreateBlankPlayerFrameData(i, playerIdx)));
+      auto pfd = CreateBlankPlayerFrameData(i, playerIdx);
+      this->remotePlayerFrameData[playerIdx].push_back(std::make_unique<PlayerFrameData>(pfd));
+      this->localPlayerFrameData.push_back(std::make_unique<PlayerFrameData>(pfd));
     }
     this->hasGameStarted = true;
   }
@@ -409,8 +408,7 @@ PlayerFrameData CEXIBrawlback::getLocalInputs(const bu32& frame)
   {
     // this shouldn't happen
     ERROR_LOG_FMT(BRAWLBACK, "Couldn't find local inputs! Using empty pad.\n");
-    // WARN_LOG_FMT(BRAWLBACK, "Local pad input range: [%u - %u]\n",
-    // this->localPlayerFrameData.front()->frame, this->localPlayerFrameData.back()->frame);
+    WARN_LOG_FMT(BRAWLBACK, "Local pad input range: [{} - {}]\n", this->localPlayerFrameData.front()->frame, this->localPlayerFrameData.back()->frame);
     return CreateBlankPlayerFrameData(frame, this->localPlayerIdx);
   }
   // INFO_LOG_FMT(BRAWLBACK, "Got local inputs frame = %u\n", localFrameData->frame);
@@ -499,7 +497,7 @@ PlayerFrameData CEXIBrawlback::getRemoteInputs(bu32& localFrame, u8 playerIdx)
       !this->remotePlayerFrameData.empty() &&  // some sanity checks
       !this->remotePlayerFrameData[playerIdx].empty() &&
       this->remotePlayerFrameData[playerIdx].size() >= MAX_ROLLBACK_FRAMES;
-
+  
   if (isRollbackMode)
   {
     this->updateSync(localFrame, playerIdx);
@@ -539,6 +537,11 @@ PlayerFrameData CEXIBrawlback::getRemoteInputs(bu32& localFrame, u8 playerIdx)
   {
     const PlayerFrameData* remoteFrameData =
         findInPlayerFrameDataQueue(this->remotePlayerFrameData[playerIdx], localFrame);
+    for (int i = 0; i < this->remotePlayerFrameData[playerIdx].size(); i++)
+    {
+      INFO_LOG_FMT(BRAWLBACK, "REMOTE PLAYER FRAME DATA FRAME (AT PLAYER INDEX {}): {}: {}",
+                   playerIdx, i, this->remotePlayerFrameData[playerIdx][i]->frame);
+    }
     // no rollbacks, use delay-based
     if (!remoteFrameData)
     {
@@ -587,8 +590,7 @@ void CEXIBrawlback::storeLocalInputs(PlayerFrameData* localPlayerFramedata)
   // localPlayerFramedata->playerIdx, this->numPlayers);
 
   // make sure we're storing inputs sequentially
-  bool is_sequential_input = pFD->frame == this->localPlayerFrameData.back()->frame + 1 ||
-                             this->localPlayerFrameData.empty();
+  bool is_sequential_input = this->localPlayerFrameData.empty() || pFD->frame == this->localPlayerFrameData.back()->frame + 1;
   if (is_sequential_input)
   {
     // store local framedata
@@ -598,11 +600,13 @@ void CEXIBrawlback::storeLocalInputs(PlayerFrameData* localPlayerFramedata)
       // this->localPlayerFrameData.front()->frame);
       this->localPlayerFrameData.pop_front();
     }
+    INFO_LOG_FMT(BRAWLBACK, "PUSHING PFD FOR FRAME {}\n", pFD->frame);
     this->localPlayerFrameData.push_back(std::move(pFD));
   }
   else
   {
-    // WARN_LOG_FMT(BRAWLBACK, "Didn't push local framedata for frame %u\n", pFD->frame);
+    ERROR_LOG_FMT(BRAWLBACK, "Didn't push local framedata for frame {}\n", pFD->frame);
+    WARN_LOG_FMT(BRAWLBACK, "iS THIS TRUE?: PFD->FRAME: {} == LOCAL PLAYER FRAME DATA BACK FRAME + 1: {}?\n", pFD->frame, this->localPlayerFrameData.back()->frame + 1);
   }
 }
 
@@ -629,7 +633,10 @@ void CEXIBrawlback::handleSendInputs(u32 frame)
   int localPadQueueSize = (int)this->localPlayerFrameData.size();
   if (localPadQueueSize == 0)
     return;  // no inputs, nothing to send
-  int endIdx = localPadQueueSize-1 - (this->localPlayerFrameData.back()->frame - minAckFrame);
+  int endIdx = -1;
+  if (frame != 0)
+    endIdx = localPadQueueSize-1 - (this->localPlayerFrameData.back()->frame - minAckFrame);
+
 
   std::vector<PlayerFrameData*> localFramedatas = {};
   // push framedatas from back to front
@@ -646,6 +653,7 @@ void CEXIBrawlback::handleSendInputs(u32 frame)
       {
         PlayerFrameData* inputToSend = localFramedata.get();
         localFramedatas.push_back(inputToSend);
+        INFO_LOG_FMT(BRAWLBACK, "INPUT TO SEND FRAME: {}\n", inputToSend->frame);
       }
     }
     else
@@ -1445,17 +1453,7 @@ void CEXIBrawlback::handleFrameCounterLoc(u8* payload)
   frameCounterLocationRegion.endAddress = frameCounterLocation + sizeof(bu32);
   frameCounterLocationRegion.data = nullptr;
   frameCounterLocationRegion.regionName = "FrameCounter";
-  auto it = std::find_if(
-      memRegions->memRegions.begin(), memRegions->memRegions.end(),
-      [&frameCounterLocation](const ssBackupLoc& obj) { return obj.startAddress == frameCounterLocation; });
-  if (it == memRegions->memRegions.end())
-  {
-    memRegions->memRegions.push_back(frameCounterLocationRegion);
-  }
-  PreserveBlock frameCounterLoc;
-  frameCounterLoc.address = frameCounterLocationRegion.startAddress - 1;
-  frameCounterLoc.length = frameCounterLocationRegion.endAddress - frameCounterLocationRegion.startAddress + 2;
-  memRegions->excludeSections = Mem::removeInterval(memRegions->excludeSections, frameCounterLoc);
+  memRegions->memRegions.push_back(frameCounterLocationRegion);
 }
 void CEXIBrawlback::handleCancelMatchmaking()
 {
