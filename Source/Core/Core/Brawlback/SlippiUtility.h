@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include "Common/ChunkFile.h"
 #include "brawlback-common/ExiStructures.h"
+#include <fmt/format.h>
 /*
 ============================================
 This, along with SlippiUtility.cpp is a place to hold code from the Slippi repo.
@@ -22,6 +23,7 @@ https://github.com/project-slippi/Ishiiruka/
 A very heartfelt thank you to the Slippi team for all their hard work and dedication. <3
 ============================================
 */
+
 
 namespace SlippiUtility
 {
@@ -83,4 +85,4 @@ namespace SlippiUtility
         float readFloat(uint8_t* a, int& idx, uint32_t maxSize, float defaultValue);
     }  // namespace Mem
 
-}
+}  // namespace SlippiUtility

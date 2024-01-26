@@ -5,10 +5,10 @@
 #include "VideoCommon/OnScreenDisplay.h"
 #include <Core/HW/Memmap.h>
 #include <fmt/format.h>
-
+#include "MemRegions.h"
 namespace Brawlback
 {
-
+    
     bool isButtonPressed(u16 buttonBits, PADButtonBits button)
     {
         return (buttonBits & (PADButtonBits::Z << 8)) != 0;
@@ -96,6 +96,7 @@ namespace Brawlback
     {
             //bool frames = p1.frame == p2.frame;
             //bool idxs = p1.playerIdx == p2.playerIdx;
+            bool _buttons = p1.pad._buttons == p2.pad._buttons;
             bool buttons = p1.pad.buttons == p2.pad.buttons;
             bool holdButtons = p1.pad.holdButtons == p2.pad.holdButtons;
             bool rapidFireButtons = p1.pad.rapidFireButtons == p2.pad.rapidFireButtons;
@@ -105,9 +106,9 @@ namespace Brawlback
                           p1.pad.stickY == p2.pad.stickY &&
                           p1.pad.cStickX == p2.pad.cStickX &&
                           p1.pad.cStickY == p2.pad.cStickY;
-            bool triggers = p1.pad.LTrigger == p2.pad.LTrigger &&
-                            p1.pad.RTrigger == p2.pad.RTrigger;
-            return buttons && holdButtons && rapidFireButtons && releasedButtons && newPressedButtons && sticks && triggers;
+            bool triggers = p1.pad.LAnalogue == p2.pad.LAnalogue &&
+                            p1.pad.RAnalogue == p2.pad.RAnalogue;
+            return _buttons && buttons && holdButtons && rapidFireButtons && releasedButtons && newPressedButtons && sticks && triggers;
         }
 
     }
@@ -155,7 +156,43 @@ namespace Brawlback
             }
         }
 
-
+        
+        bool isIntersect(PreserveBlock a, PreserveBlock b)
+        {
+          return std::max(a.address, a.address + a.length) >= std::min(b.address, b.address + b.length);
+        }
+        void manipulate2(std::vector<PreserveBlock>& a, PreserveBlock y)
+        {
+          PreserveBlock x = a.back();
+          a.pop_back();
+          PreserveBlock z = x;
+          x.address = y.address + y.length;
+          z.length = y.address - z.address;
+          if (z.address < z.address + z.length)
+            a.push_back(z);
+          if (x.address < x.address + x.length)
+            a.push_back(x);
+        }
+        std::vector<PreserveBlock> removeInterval(std::vector<PreserveBlock>& in, PreserveBlock& t)
+        {
+          std::vector<PreserveBlock> ans;
+          std::size_t n = in.size();
+          for (int i = 0; i < n; i++)
+          {
+            ans.push_back(in[i]);
+            PreserveBlock a;
+            PreserveBlock b;
+            a = ans.back();
+            b = t;
+            if (a.address > b.address)
+              std::swap(a, b);
+            if (isIntersect(a, b))
+            {
+              manipulate2(ans, t);
+            }
+          }
+          return ans;
+        }
         
     }
 
@@ -199,10 +236,8 @@ namespace Brawlback
             std::string csticks = "[CStickX: " + std::to_string(pad.cStickX) + "] [CStickY: " + std::to_string(pad.cStickY) + "]\n";
             inputs.append(csticks);
             
-            std::string triggers = "[LTrigger: " + std::to_string(pad.LTrigger) +
-                         "] [RTrigger: " + std::to_string(pad.RTrigger) + "] " +
-                         "[LAnalogue: " + std::to_string(pad.LAnalogue) + "] " +
-                         "[RAnalogue: " + std::to_string(pad.RAnalogue) + "]\n";
+            std::string triggers = "[LTrigger: " + std::to_string(pad.LAnalogue) +
+                                   "] [RTrigger: " + std::to_string(pad.RAnalogue) + "] ";
             inputs.append(triggers);
             
             std::string buttons = "[Buttons: " + str_half(pad.buttons) + "]\n";
@@ -218,6 +253,7 @@ namespace Brawlback
 
             ret.append(info);
             ret.append(stringifyPad(pfd.pad));
+            ret.append(stringifyPad(pfd.sysPad));
             return ret;
         }
 

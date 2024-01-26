@@ -8,9 +8,8 @@
 #include "Common/Timer.h"
 #include "VideoCommon/OnScreenDisplay.h"
 #include "Common/Logging/Log.h"
-
 #include "MemRegions.h"
-
+#include <sstream>
 #define LOW_BOUND_MEM 0x80000000
 
 // lots of code here is heavily derived from Slippi's Savestates.cpp
@@ -59,25 +58,7 @@ void BrawlbackSavestate::getDolphinState(PointerWrap& p)
 
 void BrawlbackSavestate::initBackupLocs()
 {
-    SlippiInitBackupLocations(this->backupLocs, MemRegions::memRegions, MemRegions::excludeSections);
-
-    // measure total savestate size & display it
-    static bool once = true;
-    if (once) {
-        u64 totalsize = 0;
-        for (auto& loc : this->backupLocs) {
-            u32 size = loc.endAddress-loc.startAddress;
-            double newsize = ((double)size / 1000.0) / 1000.0;
-            INFO_LOG_FMT(BRAWLBACK, "Savestate region: 0x{} - 0x{} : size {} mb   {}\n",
-                         loc.startAddress, loc.endAddress, newsize, loc.regionName);
-            totalsize += size;
-        }
-        double dsize = ((double)totalsize / 1000.0) / 1000.0;
-        std::string savestates_str = "Savestates total size: " + std::to_string(dsize) + " mb\n";
-        OSD::AddTypedMessage(OSD::MessageType::Typeless, savestates_str, OSD::Duration::NORMAL, OSD::Color::GREEN);
-        INFO_LOG_FMT(BRAWLBACK, "Savestates total size: {} mb\n", dsize);
-  }
-  once = false;
+    SlippiInitBackupLocations(this->backupLocs, memRegions->memRegions, memRegions->excludeSections);
 }
 
 typedef std::vector<SlippiUtility::Savestate::ssBackupLoc>::iterator backupLocIterator;
@@ -92,24 +73,18 @@ void captureMemRegions(backupLocIterator start, backupLocIterator end) {
 void BrawlbackSavestate::Capture()
 {
     captureMemRegions(backupLocs.begin(), backupLocs.end());
+    u64 totalsize = 0;
+    for (auto& loc : backupLocs)
+    {
+        totalsize += loc.endAddress - loc.startAddress;
+    }
+    double dsize = ((double)totalsize / 1000000.0);
+    INFO_LOG_FMT(BRAWLBACK, "backupLocs total size: {:.13} mb\n", dsize);
 }
 
 void BrawlbackSavestate::Load(std::vector<PreserveBlock> blocks)
 {
-    // Back up regions of game that should stay the same between savestates
-
-    for (auto it = blocks.begin(); it != blocks.end(); ++it)
-    {
-      if (!preservationMap.count(*it))  // if this PreserveBlock is NOT in our preservationMap
-      {
-        // TODO: Clear preservation map when game ends
-        preservationMap[*it] =
-            std::vector<u8>(it->length);  // init new entry at this PreserveBlock key
-      }
-
-      Memory::CopyFromEmu(&preservationMap[*it][0], it->address, it->length);
-    }
-
+  
   // Restore memory blocks
   for (auto it = backupLocs.begin(); it != backupLocs.end(); ++it)
   {
@@ -119,20 +94,13 @@ void BrawlbackSavestate::Load(std::vector<PreserveBlock> blocks)
     //    Memory::CopyToEmu(it->startAddress, it->data, it->endAddress);  // emu -> game
     //}
     // else
-    //{
+    //
     Memory::CopyToEmu(it->startAddress, it->data, size);  // emu -> game
                                                           //}
   }
-
     //// Restore audio
     //u8 *ptr = &dolphinSsBackup[0];
     //PointerWrap p(&ptr, PointerWrap::MODE_READ);
     //getDolphinState(p);
-
-    // Restore preservation blocks
-    for (auto it = blocks.begin(); it != blocks.end(); ++it)
-    {
-        Memory::CopyToEmu(it->address, &preservationMap[*it][0], it->length);
-    }
   
 }

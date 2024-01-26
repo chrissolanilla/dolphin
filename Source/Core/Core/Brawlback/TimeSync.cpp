@@ -26,7 +26,7 @@ bool TimeSync::shouldStallFrame(s32 currentFrame, s32 latestRemoteFrame, u8 numP
 
     // SLIPPI LOGIC
     bool frameDiffCheck;
-    if (ROLLBACK_IMPL)
+    if (ROLLBACK_IMPL && currentFrame > GAME_FULL_START_FRAME)
     {
       INFO_LOG_FMT(BRAWLBACK, "ROLLBACK IS ENABLED! FRAMEDIFF: {}", dispStr.str());
       frameDiffCheck = frameDiff >= MAX_ROLLBACK_FRAMES;
@@ -208,6 +208,7 @@ int TimeSync::getMinAckFrame(u8 numPlayers) {
         if (minAckFrame == 0 || (this->lastFrameAcked[i] < minAckFrame && this->lastFrameAcked[i] != 0))
             minAckFrame = this->lastFrameAcked[i];
     }
+    INFO_LOG_FMT(BRAWLBACK, "MIN ACK FRAME: {}\n", minAckFrame);
     return minAckFrame;
 }
 

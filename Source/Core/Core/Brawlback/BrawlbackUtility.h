@@ -51,19 +51,22 @@ namespace Brawlback {
     {
       CMD_UNKNOWN = 0,
 
-      CMD_ONLINE_INPUTS = 1, // sending inputs from game to emulator
+      CMD_ONLINE_INPUTS = 1,  // sending inputs from game to emulator
       CMD_CAPTURE_SAVESTATE = 2,
       CMD_LOAD_SAVESTATE = 3,
+      CMD_SEND_ALLOCS = 30,
+      CMD_SEND_DEALLOCS = 31,
+      CMD_SEND_DUMPALL = 32,
+      CMD_SEND_FRAMECOUNTERLOC = 33,
+      CMD_CANCEL_MATCHMAKING = 34,
 
       CMD_FIND_OPPONENT = 5,
       CMD_START_MATCH = 13,
       CMD_SETUP_PLAYERS = 14,
-      CMD_FRAMEDATA = 15, // game is requesting inputs for some frame
+      CMD_FRAMEDATA = 15,  // game is requesting inputs for some frame
       CMD_TIMESYNC = 16,
       CMD_ROLLBACK = 17,
       CMD_FRAMEADVANCE = 18,
-
-      CMD_SAVESTATE_REGION = 22,
 
       // REPLAYS
       CMD_REPLAY_START_REPLAYS_STRUCT = 19,
@@ -119,6 +122,16 @@ namespace Brawlback {
       return val;
     }
 
+    inline void SwapBrawlbackPadDataEndianess(BrawlbackPad& pad)
+    {
+      pad._buttons = swap_endian(pad._buttons);
+      pad.buttons = swap_endian(pad.buttons);
+      pad.holdButtons = swap_endian(pad.holdButtons);
+      pad.rapidFireButtons = swap_endian(pad.rapidFireButtons);
+      pad.releasedButtons = swap_endian(pad.releasedButtons);
+      pad.newPressedButtons = swap_endian(pad.newPressedButtons);
+    }
+
     inline void SwapPlayerFrameDataEndianness(PlayerFrameData& pfd) {
         pfd.frame = swap_endian(pfd.frame);
         pfd.syncData.anim = swap_endian(pfd.syncData.anim);
@@ -126,12 +139,14 @@ namespace Brawlback {
         pfd.syncData.locY = swap_endian(pfd.syncData.locY);
         pfd.syncData.percent = swap_endian(pfd.syncData.percent);
         pfd.randomSeed = swap_endian(pfd.randomSeed);
+        SwapBrawlbackPadDataEndianess(pfd.pad);
+        SwapBrawlbackPadDataEndianess(pfd.sysPad);
     }
     inline void SwapFrameDataEndianness(FrameData& fd) {
         for (int i = 0; i < MAX_NUM_PLAYERS; i++) {
             SwapPlayerFrameDataEndianness(fd.playerFrameDatas[i]);
         }
-        swap_endian(fd.randomSeed);
+        fd.randomSeed = swap_endian(fd.randomSeed);
     }
 
     inline void PrintSyncData(const SyncData& data) {
@@ -155,6 +170,9 @@ namespace Brawlback {
         }
 
         void fillByteVectorWithBuffer(std::vector<u8>& vec, u8* buf, size_t size);
+        bool isIntersect(PreserveBlock a, PreserveBlock b);
+        void manipulate2(std::vector<PreserveBlock>& a, PreserveBlock y);
+        std::vector<PreserveBlock> removeInterval(std::vector<PreserveBlock>& in, PreserveBlock& t);
     }
     namespace Sync {
         std::string getSyncLogFilePath();
@@ -173,15 +191,16 @@ namespace Brawlback {
 
     inline bool isInputsEqual(const BrawlbackPad& p1, const BrawlbackPad& p2) {
         // TODO: this code is duplicated on the .cpp make it dry or I don't know
+        bool _buttons = p1._buttons == p2._buttons;
         bool buttons = p1.buttons == p2.buttons;
         bool holdButtons = p1.holdButtons == p2.holdButtons;
         bool rapidFireButtons = p1.rapidFireButtons == p2.rapidFireButtons;
         bool releasedButtons = p1.releasedButtons == p2.releasedButtons;
         bool newPressedButtons = p1.newPressedButtons == p2.newPressedButtons;
-        bool triggers = p1.LTrigger == p2.LTrigger && p1.RTrigger == p2.RTrigger;
+        bool triggers = p1.LAnalogue == p2.LAnalogue && p1.RAnalogue == p2.RAnalogue;
         bool analogSticks = p1.stickX == p2.stickX && p1.stickY == p2.stickY;
         bool cSticks = p1.cStickX == p2.cStickX && p1.cStickY == p2.cStickY;
-        return buttons && holdButtons && rapidFireButtons && releasedButtons && newPressedButtons && analogSticks && cSticks && triggers;
+        return _buttons && buttons && holdButtons && rapidFireButtons && releasedButtons && newPressedButtons && analogSticks && cSticks && triggers;
 
         //return memcmp(&p1, &p2, sizeof(BrawlbackPad)) == 0;
     }
@@ -197,8 +216,8 @@ namespace Brawlback {
         ret.pad.stickY = (u8)(127-generator() % (127*2));
         ret.pad.cStickX = (u8)(127-generator() % (127*2));
         ret.pad.cStickY = (u8)(127-generator() % (127*2));
-        ret.pad.LTrigger = (u8)(127-generator() % (127*2));
-        ret.pad.RTrigger = (u8)(127-generator() % (127*2));
+        ret.pad.LAnalogue = (u8)(127-generator() % (127*2));
+        ret.pad.RAnalogue = (u8)(127-generator() % (127*2));
         return ret;
     }
 
