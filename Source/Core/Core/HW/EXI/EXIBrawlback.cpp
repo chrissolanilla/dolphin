@@ -876,6 +876,7 @@ void CEXIBrawlback::ProcessGameSettings(GameSettings* opponentGameSettings)
   }
 
   std::lock_guard<std::mutex> lock(read_queue_mutex);
+  this->read_queue.clear();
   this->read_queue.push_back(EXICommand::CMD_SETUP_PLAYERS);
   auto gameSettingsPtr = reinterpret_cast<u8*>(&mergedGameSettings);
   this->read_queue.insert(this->read_queue.end(), gameSettingsPtr,
