@@ -189,6 +189,14 @@ namespace Brawlback {
     PlayerFrameData* findInPlayerFrameDataQueue(const PlayerFrameDataQueue& queue,
                                                            u32 frame);
 
+    inline bool isSyncDataEqual(const SyncData& p1, const SyncData& p2)
+    {
+        bool xLoc = p1.locX == p2.locX;
+        bool yLoc = p1.locY == p2.locY;
+        bool anim = p1.anim == p2.anim;
+        bool facingDir = p1.facingDir == p2.facingDir;
+        return xLoc && yLoc && anim && facingDir;
+    }
     inline bool isInputsEqual(const BrawlbackPad& p1, const BrawlbackPad& p2) {
         // TODO: this code is duplicated on the .cpp make it dry or I don't know
         bool _buttons = p1._buttons == p2._buttons;

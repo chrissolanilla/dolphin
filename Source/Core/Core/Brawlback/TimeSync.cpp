@@ -90,6 +90,21 @@ bool TimeSync::shouldStallFrame(s32 currentFrame, s32 latestRemoteFrame, u8 numP
 	return false;
 }
 
+void TimeSync::startGame(u8 numPlayers)
+{
+  for (int i = 0; i < numPlayers; i++)
+  {
+    FrameTiming timing;
+    timing.frame = 0;
+    timing.timeUs = Common::Timer::NowUs();
+    this->lastFrameTimings[i] = timing;
+    this->lastFrameAcked[i] = 0;
+
+    // Reset ack timers
+    this->ackTimers[i].clear();
+  }
+}
+
 // called when sending inputs
 void TimeSync::TimeSyncUpdate(u32 frame, u8 numPlayers) { // frame with delay
     u64 currentTime = Common::Timer::NowUs();

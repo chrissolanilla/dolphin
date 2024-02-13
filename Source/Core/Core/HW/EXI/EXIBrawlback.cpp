@@ -314,6 +314,7 @@ void CEXIBrawlback::handleLocalPadData(u8* data)
       this->remotePlayerFrameData[playerIdx].push_back(std::make_unique<PlayerFrameData>(pfd));
       this->localPlayerFrameData.push_back(std::make_unique<PlayerFrameData>(pfd));
     }
+    this->timeSync->startGame(this->numPlayers);
     this->hasGameStarted = true;
   }
 
@@ -1361,34 +1362,23 @@ void CEXIBrawlback::handleDumpAll(u8* payload)
   memcpy(&dumpAll, payload, sizeof(SavestateMemRegionInfo));
   SwapEndianSavestateMemRegionInfo(dumpAll);
 
-  SlippiUtility::Savestate::ssBackupLoc addDumpAll;
-  u32 startAddress = dumpAll.address;
+  SlippiUtility::Savestate::ssBackupLoc addDumpAll;\
   addDumpAll.data = nullptr;
   addDumpAll.startAddress = dumpAll.address;
   addDumpAll.endAddress = dumpAll.address + dumpAll.size;
-  u32 endAddress = addDumpAll.endAddress;
   addDumpAll.regionName = std::string((char*)dumpAll.nameBuffer, dumpAll.nameSize);
-  auto it =
-      std::find_if(memRegions->memRegions.begin(), memRegions->memRegions.end(),
-                   [&startAddress, &endAddress](const ssBackupLoc& obj) {
-                     return (obj.startAddress >= startAddress && obj.endAddress <= endAddress) ||
-                            (obj.endAddress >= startAddress && obj.endAddress <= endAddress);
-                   });
-  if (it == memRegions->memRegions.end())
+  if (addDumpAll.regionName == "Fighter1Resoruce" || addDumpAll.regionName == "Fighter2Resoruce" || addDumpAll.regionName == "IteamResource")
   {
-    if (addDumpAll.regionName == "Fighter1Resoruce" || addDumpAll.regionName == "Fighter2Resoruce" || addDumpAll.regionName == "IteamResource")
-    {
-      u8* data = static_cast<u8*>(Common::AllocateAlignedMemory(3, 64));
-      Memory::CopyFromEmuSwapped(data, addDumpAll.startAddress, 3);
-      if (std::string((char*)data, 3) != "ARC")
-      {
-        memRegions->memRegions.push_back(addDumpAll);
-      }
-    }
-    else
+    u8* data = static_cast<u8*>(Common::AllocateAlignedMemory(3, 64));
+    Memory::CopyFromEmuSwapped(data, addDumpAll.startAddress, 3);
+    if (std::string((char*)data, 3) != "ARC")
     {
       memRegions->memRegions.push_back(addDumpAll);
     }
+  }
+  else
+  {
+    memRegions->memRegions.push_back(addDumpAll);
   }
 }
 
@@ -1400,31 +1390,21 @@ void CEXIBrawlback::handleAlloc(u8* payload)
   SlippiUtility::Savestate::ssBackupLoc addAlloc;
   addAlloc.data = nullptr;
   addAlloc.startAddress = alloc.address;
-  u32 startAddress = alloc.address;
   addAlloc.endAddress = alloc.address + alloc.size;
-  u32 endAddress = addAlloc.endAddress;
   addAlloc.regionName = std::string((char*)alloc.nameBuffer, alloc.nameSize);
-  auto it = std::find_if(
-      memRegions->memRegions.begin(), memRegions->memRegions.end(),
-                   [&startAddress, &endAddress](const ssBackupLoc& obj) {
-                     return (obj.startAddress >= startAddress && obj.endAddress <= endAddress) ||
-                            (obj.endAddress >= startAddress && obj.endAddress <= endAddress);
-                   });
-  if (it == memRegions->memRegions.end())
+  
+  if (addAlloc.regionName == "Fighter1Resoruce" || addAlloc.regionName == "Fighter2Resoruce" || addAlloc.regionName == "IteamResource")
   {
-    if (addAlloc.regionName == "Fighter1Resoruce" || addAlloc.regionName == "Fighter2Resoruce" || addAlloc.regionName == "IteamResource")
-    {
-      u8* data = static_cast<u8*>(Common::AllocateAlignedMemory(3, 64));
-      Memory::CopyFromEmuSwapped(data, addAlloc.startAddress, 3);
-      if (std::string((char*)data, 3) != "ARC")
-      {
-        memRegions->memRegions.push_back(addAlloc);
-      }
-    }
-    else
+    u8* data = static_cast<u8*>(Common::AllocateAlignedMemory(3, 64));
+    Memory::CopyFromEmuSwapped(data, addAlloc.startAddress, 3);
+    if (std::string((char*)data, 3) != "ARC")
     {
       memRegions->memRegions.push_back(addAlloc);
     }
+  }
+  else
+  {
+    memRegions->memRegions.push_back(addAlloc);
   }
 }
 
