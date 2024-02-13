@@ -1414,14 +1414,7 @@ void CEXIBrawlback::handleDealloc(u8* payload)
   memcpy(&dealloc, payload, sizeof(SavestateMemRegionInfo));
   SwapEndianSavestateMemRegionInfo(dealloc);
   u32 startAddress = dealloc.address;
-  auto it = std::find_if(
-      memRegions->memRegions.begin(), memRegions->memRegions.end(),
-      [&startAddress](const ssBackupLoc& obj) { return obj.startAddress == startAddress; });
-
-  if (it != memRegions->memRegions.end())
-  {
-    memRegions->memRegions.erase(it);
-  }
+  memRegions->memRegions.erase(std::remove_if(std::begin(memRegions->memRegions), std::end(memRegions->memRegions), [&startAddress](ssBackupLoc obj) { return (obj.startAddress == startAddress); }), std::end(memRegions->memRegions));
 }
 void CEXIBrawlback::handleFrameCounterLoc(u8* payload)
 {
