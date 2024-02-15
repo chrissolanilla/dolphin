@@ -10,7 +10,6 @@
 #include "Common/Logging/Log.h"
 #include "MemRegions.h"
 #include <sstream>
-#include <execution>
 #define LOW_BOUND_MEM 0x80000000
 
 // lots of code here is heavily derived from Slippi's Savestates.cpp
@@ -86,17 +85,19 @@ void BrawlbackSavestate::Capture()
 void BrawlbackSavestate::Load(std::vector<PreserveBlock> blocks)
 {
   
-  // Restore memory blocks
-    std::for_each(std::execution::par_unseq, backupLocs.begin(), backupLocs.end(), [](const ssBackupLoc& state) {
-      auto size = state.endAddress - state.startAddress;
-      // if (it->endAddress < LOW_BOUND_MEM)
-      //{
-      //    Memory::CopyToEmu(it->startAddress, it->data, it->endAddress);  // emu -> game
-      //}
-      // else
-      //
-      Memory::CopyToEmu(state.startAddress, state.data, size);
-    });
+    // Restore memory blocks
+    for (auto it = backupLocs.begin(); it != backupLocs.end(); ++it)
+    {
+        auto size = it->endAddress - it->startAddress;
+        // if (it->endAddress < LOW_BOUND_MEM)
+        //{
+        //    Memory::CopyToEmu(it->startAddress, it->data, it->endAddress);  // emu -> game
+        //}
+        // else
+        //
+        Memory::CopyToEmu(it->startAddress, it->data, size);  // emu -> game
+                                                              //}
+    }
     //// Restore audio
     //u8 *ptr = &dolphinSsBackup[0];
     //PointerWrap p(&ptr, PointerWrap::MODE_READ);
