@@ -272,9 +272,9 @@ PlayerFrameData CreateBlankPlayerFrameData(u32 frame, u8 playerIdx)
   PlayerFrameData dummy_framedata = PlayerFrameData();
   dummy_framedata.frame = frame;
   dummy_framedata.playerIdx = playerIdx;
-  dummy_framedata.syncData = SyncData();
-  dummy_framedata.pad = BrawlbackPad();     // empty pad
-  dummy_framedata.sysPad = BrawlbackPad();  // empty pad
+  dummy_framedata.syncData = {};
+  dummy_framedata.pad = {};                 // empty pad
+  dummy_framedata.sysPad = {};  // empty pad
   return dummy_framedata;
 }
 FrameData CreateBlankFrameData(u32 frame)

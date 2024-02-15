@@ -109,7 +109,6 @@ struct MemRegions
       {0x8066f820, 0x8066f820 + 0x600, nullptr, "g_gfSceneRoot->field_0x38c[8][1]"},
       {0x81601960, 0x81734d60, nullptr, "InfoInstance"},
       {0x814ce460, 0x8154e560, nullptr, "StageInstance"},
-      {0x805b6c80, 0x805b6c80 + 0x80, nullptr, "g_gfCopyEFBMgr"},
       {0x8049e57c, 0x8049e57c + 0xC, nullptr, "g_grCollisionList"},
       {0x80b8db60, 0x80c23a60, nullptr, "Effect"}
     };
