@@ -85,19 +85,19 @@ void BrawlbackSavestate::Capture()
 void BrawlbackSavestate::Load(std::vector<PreserveBlock> blocks)
 {
   
-  // Restore memory blocks
-  for (auto it = backupLocs.begin(); it != backupLocs.end(); ++it)
-  {
-    auto size = it->endAddress - it->startAddress;
-    // if (it->endAddress < LOW_BOUND_MEM)
-    //{
-    //    Memory::CopyToEmu(it->startAddress, it->data, it->endAddress);  // emu -> game
-    //}
-    // else
-    //
-    Memory::CopyToEmu(it->startAddress, it->data, size);  // emu -> game
-                                                          //}
-  }
+    // Restore memory blocks
+    for (auto it = backupLocs.begin(); it != backupLocs.end(); ++it)
+    {
+        auto size = it->endAddress - it->startAddress;
+        // if (it->endAddress < LOW_BOUND_MEM)
+        //{
+        //    Memory::CopyToEmu(it->startAddress, it->data, it->endAddress);  // emu -> game
+        //}
+        // else
+        //
+        Memory::CopyToEmu(it->startAddress, it->data, size);  // emu -> game
+                                                              //}
+    }
     //// Restore audio
     //u8 *ptr = &dolphinSsBackup[0];
     //PointerWrap p(&ptr, PointerWrap::MODE_READ);

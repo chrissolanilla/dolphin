@@ -31,6 +31,8 @@ public:
     // this is the backbone of the time sync logic. Returns whether or not we should stall on *this* current frame.
     bool shouldStallFrame(s32 currentFrame, s32 latestRemoteFrame, u8 numPlayers);
 
+    void startGame(u8 numPlayers);
+
     int getMinAckFrame(u8 numPlayers);
 
     bool getIsConnectionStalled() { return isConnectionStalled; }
