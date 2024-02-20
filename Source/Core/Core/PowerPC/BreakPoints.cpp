@@ -204,10 +204,21 @@ MemChecks::TMemChecksStr MemChecks::GetStrings() const
     std::ostringstream ss;
     ss.imbue(std::locale::classic());
 
-    ss << std::hex << mc.start_address << " " << mc.end_address << " " << (mc.is_enabled ? "n" : "")
-       << (mc.is_break_on_read ? "r" : "") << (mc.is_break_on_write ? "w" : "")
-       << (mc.log_on_hit ? "l" : "") << (mc.break_on_hit ? "b" : "");
-    mc_strings.push_back(ss.str());
+     ss << fmt::format("${:08x} {:08x} ", mc.start_address, mc.end_address);
+    if (mc.is_enabled)
+      ss << 'n';
+    if (mc.is_break_on_read)
+      ss << 'r';
+    if (mc.is_break_on_write)
+      ss << 'w';
+    if (mc.log_on_hit)
+      ss << 'l';
+    if (mc.break_on_hit)
+      ss << 'b';
+    if (mc.condition)
+      ss << "c " << mc.condition->GetText();
+
+    mc_strings.emplace_back(ss.str());
   }
 
   return mc_strings;
@@ -221,6 +232,9 @@ void MemChecks::AddFromStrings(const TMemChecksStr& mc_strings)
     std::istringstream iss(mc_string);
     iss.imbue(std::locale::classic());
 
+    if (iss.peek() == '$')
+      iss.ignore();
+
     std::string flags;
     iss >> std::hex >> mc.start_address >> mc.end_address >> flags;
 
@@ -231,11 +245,19 @@ void MemChecks::AddFromStrings(const TMemChecksStr& mc_strings)
     mc.log_on_hit = flags.find('l') != flags.npos;
     mc.break_on_hit = flags.find('b') != flags.npos;
 
-    Add(mc);
+    if (flags.find('c') != std::string::npos)
+    {
+      iss >> std::ws;
+      std::string condition;
+      std::getline(iss, condition);
+      mc.condition = Expression::TryParse(condition);
+    }
+
+    Add(std::move(mc));
   }
 }
 
-void MemChecks::Add(const TMemCheck& memory_check)
+void MemChecks::Add(TMemCheck memory_check)
 {
   bool had_any = HasAny();
   Core::RunAsCPUThread([&] {
@@ -254,7 +276,7 @@ void MemChecks::Add(const TMemCheck& memory_check)
     }
     else
     {
-      m_mem_checks.push_back(memory_check);
+      m_mem_checks.emplace_back(std::move(memory_check));
     }
     // If this is the first one, clear the JIT cache so it can switch to
     // watchpoint-compatible code.
@@ -338,7 +360,8 @@ bool TMemCheck::Action(Common::DebugInterface* debug_interface, u64 value, u32 a
   if (!is_enabled)
     return false;
 
-  if ((write && is_break_on_write) || (!write && is_break_on_read))
+  if (((write && is_break_on_write) || (!write && is_break_on_read)) &&
+      EvaluateCondition(this->condition))
   {
     if (log_on_hit)
     {
