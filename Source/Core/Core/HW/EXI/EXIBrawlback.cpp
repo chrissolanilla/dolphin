@@ -1413,7 +1413,6 @@ void CEXIBrawlback::handleDealloc(u8* payload)
   SavestateMemRegionInfo dealloc;
   memcpy(&dealloc, payload, sizeof(SavestateMemRegionInfo));
   SwapEndianSavestateMemRegionInfo(dealloc);
-  u32 startAddress = dealloc.address;
   deallocRegions.push_back(dealloc);
 }
 void CEXIBrawlback::handleFrameCounterLoc(u8* payload)
