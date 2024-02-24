@@ -5,9 +5,9 @@ endif()
 
 if (NOT QT_DIR AND MSVC)
   if(_M_ARM_64)
-    set(QT_DIR "${CMAKE_SOURCE_DIR}/Externals/Qt/Qt6.3.0/ARM64/lib/cmake/Qt6")
+    list(APPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/Externals/Qt/Qt6.3.0/ARM64")
   else()
-    set(QT_DIR "${CMAKE_SOURCE_DIR}/Externals/Qt/Qt6.3.0/x64/lib/cmake/Qt6")
+    list(APPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/Externals/Qt/Qt6.3.0/x64")
   endif()
 endif()
 
