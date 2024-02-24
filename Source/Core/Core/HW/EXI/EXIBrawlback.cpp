@@ -1414,7 +1414,7 @@ void CEXIBrawlback::handleDealloc(u8* payload)
   memcpy(&dealloc, payload, sizeof(SavestateMemRegionInfo));
   SwapEndianSavestateMemRegionInfo(dealloc);
   u32 startAddress = dealloc.address;
-  memRegions->memRegions.erase(std::remove_if(std::begin(memRegions->memRegions), std::end(memRegions->memRegions), [&startAddress](ssBackupLoc obj) { return (obj.startAddress == startAddress); }), std::end(memRegions->memRegions));
+  deallocRegions.push_back(dealloc);
 }
 void CEXIBrawlback::handleFrameCounterLoc(u8* payload)
 {
@@ -1436,6 +1436,15 @@ void CEXIBrawlback::handleCancelMatchmaking()
   {
     this->matchmaking_thread.join();
   }
+}
+void CEXIBrawlback::handleAllDeallocs()
+{
+  for (int i = 0; i < deallocRegions.size(); i++)
+  {
+    bu32 startAddress = deallocRegions[i].address;
+    memRegions->memRegions.erase(std::remove_if(std::begin(memRegions->memRegions), std::end(memRegions->memRegions), [&startAddress](ssBackupLoc obj) { return (obj.startAddress == startAddress); }), std::end(memRegions->memRegions));
+  }
+  deallocRegions.clear();
 }
     // recieve data from game into emulator
 void CEXIBrawlback::DMAWrite(u32 address, u32 size)
@@ -1515,6 +1524,9 @@ void CEXIBrawlback::DMAWrite(u32 address, u32 size)
     break;
   case CMD_CANCEL_MATCHMAKING:
     handleCancelMatchmaking();
+    break;
+  case CMD_ADD_DEALLOCS:
+    handleAllDeallocs();
     break;
   // just using these CMD's to track frame times lol
   case CMD_TIMER_START:

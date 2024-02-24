@@ -49,7 +49,6 @@ struct MemRegions
 
     memRegions = {
       {0x80A471A0, 0x80b8db60, nullptr, "OverlayCommon 4/4"},
-      {0x81049e60, 0x81061060, nullptr, "Tmp"},
       {0x806414a0, 0x806414a0 + 0x60, nullptr, "g_soSlow"},
       {0x8062f440, 0x8062f440 + 0x500, nullptr, "g_grCollisionManager"},
       {0x8063ff60, 0x8063ff60 + 0x1520, nullptr, "g_soCollisionManager"},
@@ -81,7 +80,6 @@ struct MemRegions
       {0x80623180, 0x80623180 + 0x20, nullptr, "g_ftAudienceManager"},
       {0x806230e0, 0x806230e0 + 0x80, nullptr, "g_ftAudienceManager->audienceImpl"},
       {0x80627920, 0x80627920 + 0x10c0, nullptr, "g_ftManager->ftDataProviderPtr"},
-      {0x805b8a00, 0x805b8a00 + 0x180, nullptr, "g_taskScheduler"},
       {0x8062f3e0, 0x8062f3e0 + 0x40, nullptr, "g_soArchiveDb"},
       {0x8062f360, 0x8062f360 + 0x60, nullptr, "g_utArchiveManagers[2]"},
       {0x8062c840, 0x8062c840 + 0x1e00, nullptr, "g_utArchiveManagers[2]->utListStart"},
@@ -107,11 +105,8 @@ struct MemRegions
       {0x80670460, 0x80670460 + 0x600, nullptr, "g_gfSceneRoot->field_0x38c[6][1]"},
       {0x8066fe40, 0x8066fe40 + 0x600, nullptr, "g_gfSceneRoot->field_0x38c[7][1]"},
       {0x8066f820, 0x8066f820 + 0x600, nullptr, "g_gfSceneRoot->field_0x38c[8][1]"},
-      {0x81601960, 0x81734d60, nullptr, "InfoInstance"},
-      {0x814ce460, 0x8154e560, nullptr, "StageInstance"},
       {0x8049e57c, 0x8049e57c + 0xC, nullptr, "g_grCollisionList"},
-      {0x80b8db60, 0x80c23a60, nullptr, "Effect"},
-      {0x805ba480, 0x805baca0, nullptr, "Pad Buffer"}
+      {0x805ba480, 0x805baca0, nullptr, "Pad Buffer"},
     };
   }
 };

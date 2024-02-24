@@ -51,6 +51,7 @@ private:
   void handleNumReplays();
   void handleGetStartReplay(u8* payload);
   void handleCancelMatchmaking();
+  void handleAllDeallocs();
 
   template <typename T>
   void SendCmdToGame(EXICommand cmd, T* payload);
@@ -115,7 +116,7 @@ private:
   FrameData predictedInputs; // predicted inputs from some previous frame
   bu32 framesToAdvance = 1; // number of "frames" to advance the simulation on this frame
   bu32 latestConfirmedFrame = 0; // Tracks the last frame where we synchronized the game state with the remote client
-
+  std::vector<SavestateMemRegionInfo> deallocRegions = {};
   void updateSync(bu32& localFrame, u8 playerIdx);
   bool shouldRollback(bu32 localFrame);
   void LoadState(bu32 rollbackFrame);
