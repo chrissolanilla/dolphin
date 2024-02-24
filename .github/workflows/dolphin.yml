@@ -18,6 +18,7 @@ jobs:
       run: |
            git submodule update --init --recursive
            brew install qt6
+           python3 -m pip install distutils
     
     - name: Configure CMake
       run: |
