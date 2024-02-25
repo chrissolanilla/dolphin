@@ -17,20 +17,21 @@ jobs:
     - name: Install Dependencies
       run: |
            git submodule update --init --recursive
-           brew install qt6
-           python3 -m pip install distutils
-    
+           rm '/usr/local/bin/2to3' || true
+           echo "HOMEBREW_NO_AUTO_UPDATE=1" >> $GITHUB_ENV
+           brew upgrade cmake
+           brew install \
+           ffmpeg@2.8 \
+           libpng \
+           pkgconfig \
+           libao \
+           sound-touch \
+           hidapi \
+          qt@6
     - name: Configure CMake
       run: |
-           mkdir build
-           cd build
-           cmake .. -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15
-           
-    - name: Build
-      run: |
-           cd build
-           make -j$(nproc)
-           
+           export LIBRARY_PATH=$LIBRARY_PATH:/usr/local/lib
+           chmod +x ./build-mac.sh && ./build-mac.sh
   windows:
       name: Windows
       runs-on: windows-latest
