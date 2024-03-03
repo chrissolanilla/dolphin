@@ -38,6 +38,7 @@ namespace SlippiUtility
         u32 endAddress;
         u8* data;
         std::string regionName;
+        u32 frame;
     } ssBackupLoc;
 
     struct preserve_hash_fn

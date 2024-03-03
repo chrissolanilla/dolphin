@@ -18,17 +18,15 @@ BrawlbackSavestate::BrawlbackSavestate(std::vector<SlippiUtility::Savestate::ssB
 {
   // init member list with proper addresses
   initStaticLocs(staticRegions);
-  // iterate through address ranges and allocate mem for our savestates
-  for (auto it = staticLocs.begin(); it != staticLocs.end(); ++it)
-  {
-    auto size = it->endAddress - it->startAddress;
-    it->data = static_cast<u8*>(Common::AllocateAlignedMemory(size, 64));
-  }
 }
 
 BrawlbackSavestate::~BrawlbackSavestate()
 {
   for (auto it = staticLocs.begin(); it != staticLocs.end(); ++it)
+  {
+    Common::FreeAlignedMemory(it->data);
+  }
+  for (auto it = dynamicLocs.begin(); it != dynamicLocs.end(); ++it)
   {
     Common::FreeAlignedMemory(it->data);
   }
@@ -58,13 +56,31 @@ void BrawlbackSavestate::getDolphinState(PointerWrap& p)
 
 void BrawlbackSavestate::initStaticLocs(std::vector<SlippiUtility::Savestate::ssBackupLoc> staticRegions)
 {
+    for (auto it = staticLocs.begin(); it != staticLocs.end(); ++it)
+    {
+      Common::FreeAlignedMemory(it->data);
+    }
     staticLocs.clear();
     staticLocs.insert(staticLocs.begin(), staticRegions.begin(), staticRegions.end());
+    for (auto it = staticLocs.begin(); it != staticLocs.end(); ++it)
+    {
+      auto size = it->endAddress - it->startAddress;
+      it->data = static_cast<u8*>(Common::AllocateAlignedMemory(size, 64));
+    }
 }
 void BrawlbackSavestate::initDynamicLocs(std::vector<SlippiUtility::Savestate::ssBackupLoc> dynamicRegions)
 {
+    for (auto it = dynamicLocs.begin(); it != dynamicLocs.end(); ++it)
+    {
+      Common::FreeAlignedMemory(it->data);
+    }
     dynamicLocs.clear();
     dynamicLocs.insert(dynamicLocs.begin(), dynamicRegions.begin(), dynamicRegions.end());
+    for (auto it = dynamicLocs.begin(); it != dynamicLocs.end(); ++it)
+    {
+      auto size = it->endAddress - it->startAddress;
+      it->data = static_cast<u8*>(Common::AllocateAlignedMemory(size, 64));
+    }
 }
 
 typedef std::vector<SlippiUtility::Savestate::ssBackupLoc>::iterator backupLocIterator;

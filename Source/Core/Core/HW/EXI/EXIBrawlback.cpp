@@ -116,6 +116,7 @@ void CEXIBrawlback::handleCaptureSavestate(u8* data)
   std::memcpy(&frame, data, sizeof(bu32));
   frame = swap_endian(frame);
   SaveState(frame);
+  this->lastStatedFrame = frame;
 }
 
 void CEXIBrawlback::SaveState(bu32 frame)
@@ -218,6 +219,7 @@ void CEXIBrawlback::LoadState(bu32 rollbackFrame)
 
   // Load savestate
   activeSavestates[rollbackFrame]->Load(blocks);
+  dynamicRegions.erase(std::remove_if(std::begin(dynamicRegions), std::end(dynamicRegions), [&rollbackFrame](ssBackupLoc obj) { return (obj.frame >= rollbackFrame); }), std::end(dynamicRegions));
 
   // Move all active savestates to available
   for (auto it = activeSavestates.begin(); it != activeSavestates.end(); ++it)
@@ -1355,6 +1357,7 @@ void CEXIBrawlback::handleDumpAll(u8* payload)
   addDumpAll.startAddress = dumpAll.address;
   addDumpAll.endAddress = dumpAll.address + dumpAll.size;
   addDumpAll.regionName = std::string((char*)dumpAll.nameBuffer, dumpAll.nameSize);
+  addDumpAll.frame = 0;
   if (addDumpAll.regionName == "Fighter1Resoruce" || addDumpAll.regionName == "Fighter2Resoruce" || addDumpAll.regionName == "IteamResource")
   {
     u8* data = static_cast<u8*>(Common::AllocateAlignedMemory(3, 64));
@@ -1380,7 +1383,7 @@ void CEXIBrawlback::handleAlloc(u8* payload)
   addAlloc.startAddress = alloc.address;
   addAlloc.endAddress = alloc.address + alloc.size;
   addAlloc.regionName = std::string((char*)alloc.nameBuffer, alloc.nameSize);
-  
+  addAlloc.frame = this->lastStatedFrame;
   if (addAlloc.regionName == "Fighter1Resoruce" || addAlloc.regionName == "Fighter2Resoruce" || addAlloc.regionName == "IteamResource")
   {
     u8* data = static_cast<u8*>(Common::AllocateAlignedMemory(3, 64));
@@ -1401,7 +1404,7 @@ void CEXIBrawlback::handleDealloc(u8* payload)
   SavestateMemRegionInfo dealloc;
   memcpy(&dealloc, payload, sizeof(SavestateMemRegionInfo));
   auto startAddress = swap_endian(dealloc.address);
-  dynamicRegions.erase(std::remove_if(std::begin(staticRegions), std::end(staticRegions), [&startAddress](ssBackupLoc obj) { return (obj.startAddress == startAddress); }), std::end(staticRegions));
+  dynamicRegions.erase(std::remove_if(std::begin(dynamicRegions), std::end(dynamicRegions), [&startAddress](ssBackupLoc obj) { return (obj.startAddress == startAddress); }), std::end(dynamicRegions));
 }
 void CEXIBrawlback::handleFrameCounterLoc(u8* payload)
 {

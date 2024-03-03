@@ -183,6 +183,7 @@ private:
       {0x805ba480, 0x805baca0, nullptr, "Pad Buffer"},
   };
   std::vector<SlippiUtility::Savestate::ssBackupLoc> dynamicRegions = {};
+  u32 lastStatedFrame = 0;
   // -------------------------------
 
   // --- Savestates
