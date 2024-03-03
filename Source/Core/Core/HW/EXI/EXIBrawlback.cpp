@@ -13,11 +13,9 @@
 #include "Core/ConfigManager.h"
 #include "Core/HW/Memmap.h"
 #include "VideoCommon/OnScreenDisplay.h"
-#include "../MemRegions.h"
 #include <regex>
 
 namespace fs = std::filesystem;
-MemRegions* memRegions = new MemRegions();
 // --- Mutexes
 std::mutex read_queue_mutex = std::mutex();
 std::mutex remotePadQueueMutex = std::mutex();
@@ -117,6 +115,7 @@ void CEXIBrawlback::handleCaptureSavestate(u8* data)
   std::memcpy(&frame, data, sizeof(bu32));
   frame = swap_endian(frame);
   SaveState(frame);
+  this->lastStatedFrame = frame;
 }
 
 void CEXIBrawlback::SaveState(bu32 frame)
@@ -135,7 +134,7 @@ void CEXIBrawlback::SaveState(bu32 frame)
     availableSavestates.clear();
     for (int i = 0; i <= MAX_ROLLBACK_FRAMES; i++)
     {
-      availableSavestates.push_back(std::make_unique<BrawlbackSavestate>());
+      availableSavestates.push_back(std::make_unique<BrawlbackSavestate>(this->staticRegions));
     }
     INFO_LOG_FMT(BRAWLBACK, "Initialized savestates!\n");
   }
@@ -171,7 +170,7 @@ void CEXIBrawlback::SaveState(bu32 frame)
     return;
   }
 
-  ss->Capture();
+  ss->Capture(this->dynamicRegions);
   // ss->frame = frame;
   // ss->checksum = SavestateChecksum(ss->getBackupLocs()); // really expensive calculation
   // INFO_LOG_FMT(BRAWLBACK, "Savestate for frame %i checksum is %i\n", ss->frame, ss->checksum);
@@ -217,19 +216,9 @@ void CEXIBrawlback::LoadState(bu32 rollbackFrame)
   // Fetch preservation blocks
   std::vector<PreserveBlock> blocks = {};
 
-  /*
-// Get preservation blocks
-int idx = 0;
-while (Common::swap32(preserveArr[idx]) != 0)
-{
-  PreserveBlock p = {Common::swap32(preserveArr[idx]), Common::swap32(preserveArr[idx + 1])};
-  blocks.push_back(p);
-  idx += 2;
-}
-  */
-
   // Load savestate
   activeSavestates[rollbackFrame]->Load(blocks);
+  dynamicRegions.erase(std::remove_if(std::begin(dynamicRegions), std::end(dynamicRegions), [&rollbackFrame](ssBackupLoc obj) { return (obj.frame >= rollbackFrame); }), std::end(dynamicRegions));
 
   // Move all active savestates to available
   for (auto it = activeSavestates.begin(); it != activeSavestates.end(); ++it)
@@ -1367,18 +1356,19 @@ void CEXIBrawlback::handleDumpAll(u8* payload)
   addDumpAll.startAddress = dumpAll.address;
   addDumpAll.endAddress = dumpAll.address + dumpAll.size;
   addDumpAll.regionName = std::string((char*)dumpAll.nameBuffer, dumpAll.nameSize);
+  addDumpAll.frame = 0;
   if (addDumpAll.regionName == "Fighter1Resoruce" || addDumpAll.regionName == "Fighter2Resoruce" || addDumpAll.regionName == "IteamResource")
   {
     u8* data = static_cast<u8*>(Common::AllocateAlignedMemory(3, 64));
     Memory::CopyFromEmuSwapped(data, addDumpAll.startAddress, 3);
     if (std::string((char*)data, 3) != "ARC")
     {
-      memRegions->memRegions.push_back(addDumpAll);
+      dynamicRegions.push_back(addDumpAll);
     }
   }
   else
   {
-    memRegions->memRegions.push_back(addDumpAll);
+    dynamicRegions.push_back(addDumpAll);
   }
 }
 
@@ -1392,19 +1382,19 @@ void CEXIBrawlback::handleAlloc(u8* payload)
   addAlloc.startAddress = alloc.address;
   addAlloc.endAddress = alloc.address + alloc.size;
   addAlloc.regionName = std::string((char*)alloc.nameBuffer, alloc.nameSize);
-  
+  addAlloc.frame = this->lastStatedFrame;
   if (addAlloc.regionName == "Fighter1Resoruce" || addAlloc.regionName == "Fighter2Resoruce" || addAlloc.regionName == "IteamResource")
   {
     u8* data = static_cast<u8*>(Common::AllocateAlignedMemory(3, 64));
     Memory::CopyFromEmuSwapped(data, addAlloc.startAddress, 3);
     if (std::string((char*)data, 3) != "ARC")
     {
-      memRegions->memRegions.push_back(addAlloc);
+      dynamicRegions.push_back(addAlloc);
     }
   }
   else
   {
-    memRegions->memRegions.push_back(addAlloc);
+    dynamicRegions.push_back(addAlloc);
   }
 }
 
@@ -1412,9 +1402,8 @@ void CEXIBrawlback::handleDealloc(u8* payload)
 {
   SavestateMemRegionInfo dealloc;
   memcpy(&dealloc, payload, sizeof(SavestateMemRegionInfo));
-  SwapEndianSavestateMemRegionInfo(dealloc);
-  u32 startAddress = dealloc.address;
-  memRegions->memRegions.erase(std::remove_if(std::begin(memRegions->memRegions), std::end(memRegions->memRegions), [&startAddress](ssBackupLoc obj) { return (obj.startAddress == startAddress); }), std::end(memRegions->memRegions));
+  auto startAddress = swap_endian(dealloc.address);
+  dynamicRegions.erase(std::remove_if(std::begin(dynamicRegions), std::end(dynamicRegions), [&startAddress](ssBackupLoc obj) { return (obj.startAddress == startAddress); }), std::end(dynamicRegions));
 }
 void CEXIBrawlback::handleFrameCounterLoc(u8* payload)
 {
@@ -1427,7 +1416,7 @@ void CEXIBrawlback::handleFrameCounterLoc(u8* payload)
   frameCounterLocationRegion.endAddress = frameCounterLocation + sizeof(bu32);
   frameCounterLocationRegion.data = nullptr;
   frameCounterLocationRegion.regionName = "FrameCounter";
-  memRegions->memRegions.push_back(frameCounterLocationRegion);
+  staticRegions.push_back(frameCounterLocationRegion);
 }
 void CEXIBrawlback::handleCancelMatchmaking()
 {

@@ -5,7 +5,6 @@
 #include "VideoCommon/OnScreenDisplay.h"
 #include <Core/HW/Memmap.h>
 #include <fmt/format.h>
-#include "MemRegions.h"
 namespace Brawlback
 {
     

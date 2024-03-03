@@ -17,19 +17,22 @@ jobs:
     - name: Install Dependencies
       run: |
            git submodule update --init --recursive
-           brew install qt6
-    
+           rm '/usr/local/bin/2to3' || true
+           echo "HOMEBREW_NO_AUTO_UPDATE=1" >> $GITHUB_ENV
+           brew upgrade cmake
+           brew install \
+           ffmpeg@2.8 \
+           libpng \
+           pkgconfig \
+           libao \
+           sound-touch \
+           hidapi \
+           qt@6
+           python3 -m pip install setuptools
     - name: Configure CMake
       run: |
-           mkdir build
-           cd build
-           cmake .. -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15
-           
-    - name: Build
-      run: |
-           cd build
-           make -j$(nproc)
-           
+           export LIBRARY_PATH=$LIBRARY_PATH:/usr/local/lib
+           chmod +x ./build-mac.sh && ./build-mac.sh
   windows:
       name: Windows
       runs-on: windows-latest
@@ -40,7 +43,7 @@ jobs:
           include:
             - build_type: Test
               artifact_name: windows-test
-              build_config: Release
+              build_config: -G "Ninja" -DCMAKE_BUILD_TYPE="Release"
       steps:
       - uses: actions/checkout@v3
 
@@ -55,11 +58,15 @@ jobs:
              echo "GIT_HASH=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
              echo "GIT_TAG=$(git describe --tags --abbrev=0)" >> $GITHUB_ENV
              echo "CURR_DATE=$(date +%Y-%m-%d)" >> $GITHUB_ENV
-      - name: Build (msbuild)
+      - uses: egor-tensin/vs-shell@v2
+      - name: "Build ${{ matrix.build_type }} Dolphin"
         shell: cmd
+        working-directory: ${{ github.workspace }}
         run: |
-             call "C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Auxiliary/Build/vcvarsall.bat" x64
-             msbuild -v:m -m -p:Platform=x64,Configuration=${{ matrix.build_config }} Source\dolphin-emu.sln
+          mkdir build
+          cd build
+          cmake ${{ matrix.build_config }} ..
+          cmake --build . --target dolphin-emu
       - name: "Prepare ${{ matrix.build_type }} Artifact"
         working-directory: ${{ github.workspace }}
         run: |

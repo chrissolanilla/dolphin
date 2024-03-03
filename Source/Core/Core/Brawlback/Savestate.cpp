@@ -8,27 +8,24 @@
 #include "Common/Timer.h"
 #include "VideoCommon/OnScreenDisplay.h"
 #include "Common/Logging/Log.h"
-#include "MemRegions.h"
 #include <sstream>
 #define LOW_BOUND_MEM 0x80000000
 
 // lots of code here is heavily derived from Slippi's Savestates.cpp
 
-BrawlbackSavestate::BrawlbackSavestate()
+BrawlbackSavestate::BrawlbackSavestate(std::vector<SlippiUtility::Savestate::ssBackupLoc> staticRegions)
 {
   // init member list with proper addresses
-  initBackupLocs();
-  // iterate through address ranges and allocate mem for our savestates
-  for (auto it = backupLocs.begin(); it != backupLocs.end(); ++it)
-  {
-    auto size = it->endAddress - it->startAddress;
-    it->data = static_cast<u8*>(Common::AllocateAlignedMemory(size, 64));
-  }
+  initStaticLocs(staticRegions);
 }
 
 BrawlbackSavestate::~BrawlbackSavestate()
 {
-  for (auto it = backupLocs.begin(); it != backupLocs.end(); ++it)
+  for (auto it = staticLocs.begin(); it != staticLocs.end(); ++it)
+  {
+    Common::FreeAlignedMemory(it->data);
+  }
+  for (auto it = dynamicLocs.begin(); it != dynamicLocs.end(); ++it)
   {
     Common::FreeAlignedMemory(it->data);
   }
@@ -56,9 +53,33 @@ void BrawlbackSavestate::getDolphinState(PointerWrap& p)
   // p.DoMarker("AudioInterface");
 }
 
-void BrawlbackSavestate::initBackupLocs()
+void BrawlbackSavestate::initStaticLocs(std::vector<SlippiUtility::Savestate::ssBackupLoc> staticRegions)
 {
-    SlippiInitBackupLocations(this->backupLocs, memRegions->memRegions, memRegions->excludeSections);
+    for (auto it = staticLocs.begin(); it != staticLocs.end(); ++it)
+    {
+      Common::FreeAlignedMemory(it->data);
+    }
+    staticLocs.clear();
+    staticLocs.insert(staticLocs.begin(), staticRegions.begin(), staticRegions.end());
+    for (auto it = staticLocs.begin(); it != staticLocs.end(); ++it)
+    {
+      auto size = it->endAddress - it->startAddress;
+      it->data = static_cast<u8*>(Common::AllocateAlignedMemory(size, 64));
+    }
+}
+void BrawlbackSavestate::initDynamicLocs(std::vector<SlippiUtility::Savestate::ssBackupLoc> dynamicRegions)
+{
+    for (auto it = dynamicLocs.begin(); it != dynamicLocs.end(); ++it)
+    {
+      Common::FreeAlignedMemory(it->data);
+    }
+    dynamicLocs.clear();
+    dynamicLocs.insert(dynamicLocs.begin(), dynamicRegions.begin(), dynamicRegions.end());
+    for (auto it = dynamicLocs.begin(); it != dynamicLocs.end(); ++it)
+    {
+      auto size = it->endAddress - it->startAddress;
+      it->data = static_cast<u8*>(Common::AllocateAlignedMemory(size, 64));
+    }
 }
 
 typedef std::vector<SlippiUtility::Savestate::ssBackupLoc>::iterator backupLocIterator;
@@ -70,13 +91,19 @@ void captureMemRegions(backupLocIterator start, backupLocIterator end) {
     }
 }
 
-void BrawlbackSavestate::Capture()
+void BrawlbackSavestate::Capture(std::vector<SlippiUtility::Savestate::ssBackupLoc> dynamicRegions)
 {
-    captureMemRegions(backupLocs.begin(), backupLocs.end());
+    initDynamicLocs(dynamicRegions);
+    captureMemRegions(staticLocs.begin(), staticLocs.end());
+    captureMemRegions(dynamicLocs.begin(), dynamicLocs.end());
     u64 totalsize = 0;
-    for (auto& loc : backupLocs)
+    for (auto& loc : staticLocs)
     {
         totalsize += loc.endAddress - loc.startAddress;
+    }
+    for (auto& loc : dynamicLocs)
+    {
+      totalsize += loc.endAddress - loc.startAddress;
     }
     double dsize = ((double)totalsize / 1000000.0);
     INFO_LOG_FMT(BRAWLBACK, "backupLocs total size: {:.13} mb\n", dsize);
@@ -84,23 +111,15 @@ void BrawlbackSavestate::Capture()
 
 void BrawlbackSavestate::Load(std::vector<PreserveBlock> blocks)
 {
-  
     // Restore memory blocks
-    for (auto it = backupLocs.begin(); it != backupLocs.end(); ++it)
+    for (auto it = staticLocs.begin(); it != staticLocs.end(); ++it)
     {
-        auto size = it->endAddress - it->startAddress;
-        // if (it->endAddress < LOW_BOUND_MEM)
-        //{
-        //    Memory::CopyToEmu(it->startAddress, it->data, it->endAddress);  // emu -> game
-        //}
-        // else
-        //
-        Memory::CopyToEmu(it->startAddress, it->data, size);  // emu -> game
-                                                              //}
+      auto size = it->endAddress - it->startAddress;
+      Memory::CopyToEmu(it->startAddress, it->data, size);
     }
-    //// Restore audio
-    //u8 *ptr = &dolphinSsBackup[0];
-    //PointerWrap p(&ptr, PointerWrap::MODE_READ);
-    //getDolphinState(p);
-  
+    for (auto it = dynamicLocs.begin(); it != dynamicLocs.end(); ++it)
+    {
+      auto size = it->endAddress - it->startAddress;
+      Memory::CopyToEmu(it->startAddress, it->data, size);
+    }
 }

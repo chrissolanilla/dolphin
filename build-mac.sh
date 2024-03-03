@@ -1,7 +1,9 @@
 # bin/sh
 
-CMAKE_FLAGS=''
-CMAKE_FLAGS+=' -DCMAKE_CXX_FLAGS="-std=c++17" -DMACOS_CODE_SIGNING=OFF -DCMAKE_BUILD_TYPE=Debug'
+QT_BREW_PATH=$(brew --prefix qt@6)
+CMAKE_FLAGS="-DQT_DIR=${QT_BREW_PATH}/lib/cmake/Qt6 -DENABLE_NOGUI=false -DMACOS_CODE_SIGNING=OFF"
+
+
 
 # Move into the build directory, run CMake, and compile the project
 

@@ -118,7 +118,6 @@
     <ClInclude Include="Core\Brawlback\include\brawlback-common\StartReplayPlayer.h" />
     <ClInclude Include="Core\Brawlback\include\brawlback-common\SyncData.h" />
     <ClInclude Include="Core\Brawlback\include\json.hpp" />
-    <ClInclude Include="Core\Brawlback\MemRegions.h" />
     <ClInclude Include="Core\Brawlback\Netplay\Matchmaking.h" />
     <ClInclude Include="Core\Brawlback\Netplay\Netplay.h" />
     <ClInclude Include="Core\Brawlback\Savestate.h" />
