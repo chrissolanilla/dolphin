@@ -8,7 +8,6 @@
 #include "Common/Timer.h"
 #include "VideoCommon/OnScreenDisplay.h"
 #include "Common/Logging/Log.h"
-#include "MemRegions.h"
 #include <sstream>
 #define LOW_BOUND_MEM 0x80000000
 

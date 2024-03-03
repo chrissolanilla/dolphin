@@ -13,7 +13,6 @@
 #include "Core/ConfigManager.h"
 #include "Core/HW/Memmap.h"
 #include "VideoCommon/OnScreenDisplay.h"
-#include "../MemRegions.h"
 #include <regex>
 
 namespace fs = std::filesystem;
