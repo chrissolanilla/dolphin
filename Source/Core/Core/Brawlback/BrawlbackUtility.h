@@ -59,7 +59,6 @@ namespace Brawlback {
       CMD_SEND_DUMPALL = 32,
       CMD_SEND_FRAMECOUNTERLOC = 33,
       CMD_CANCEL_MATCHMAKING = 34,
-      CMD_ADD_DEALLOCS = 35,
 
       CMD_FIND_OPPONENT = 5,
       CMD_START_MATCH = 13,

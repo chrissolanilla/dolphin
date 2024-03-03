@@ -12,30 +12,32 @@ class BrawlbackSavestate
 public:
 
 
-    BrawlbackSavestate();
+    BrawlbackSavestate(std::vector<SlippiUtility::Savestate::ssBackupLoc> staticRegions);
     ~BrawlbackSavestate();
 
 
-    void Capture();
+    void Capture(std::vector<SlippiUtility::Savestate::ssBackupLoc> dynamicRegions);
     void Load(std::vector<PreserveBlock> blocks);
 
     //static bool shouldForceInit;
 
-    std::vector<ssBackupLoc>* getBackupLocs() { return &backupLocs; }
+    std::vector<ssBackupLoc>* getBackupLocs() { return &staticLocs; }
 
     int frame = -1;
     int checksum = -1;
 private:
 
 
-    std::vector<ssBackupLoc> backupLocs = {};
+    std::vector<ssBackupLoc> staticLocs = {};
+    std::vector<ssBackupLoc> dynamicLocs = {};
     std::unordered_map<PreserveBlock, std::vector<u8>, preserve_hash_fn, preserve_eq_fn> preservationMap;
     std::vector<u8> dolphinSsBackup = {};
 
     void getDolphinState(PointerWrap& p);
 
 
-    void initBackupLocs();
+    void initStaticLocs(std::vector<SlippiUtility::Savestate::ssBackupLoc> staticRegions);
+    void initDynamicLocs(std::vector<SlippiUtility::Savestate::ssBackupLoc> dynamicRegions);
 
     //std::thread firstHalf;
     //std::thread secondHalf;

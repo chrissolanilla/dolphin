@@ -110,4 +110,3 @@ struct MemRegions
     };
   }
 };
-extern MemRegions* memRegions;

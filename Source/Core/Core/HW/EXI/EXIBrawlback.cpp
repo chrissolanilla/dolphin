@@ -17,7 +17,6 @@
 #include <regex>
 
 namespace fs = std::filesystem;
-MemRegions* memRegions = new MemRegions();
 // --- Mutexes
 std::mutex read_queue_mutex = std::mutex();
 std::mutex remotePadQueueMutex = std::mutex();
@@ -135,7 +134,7 @@ void CEXIBrawlback::SaveState(bu32 frame)
     availableSavestates.clear();
     for (int i = 0; i <= MAX_ROLLBACK_FRAMES; i++)
     {
-      availableSavestates.push_back(std::make_unique<BrawlbackSavestate>());
+      availableSavestates.push_back(std::make_unique<BrawlbackSavestate>(this->staticRegions));
     }
     INFO_LOG_FMT(BRAWLBACK, "Initialized savestates!\n");
   }
@@ -171,7 +170,7 @@ void CEXIBrawlback::SaveState(bu32 frame)
     return;
   }
 
-  ss->Capture();
+  ss->Capture(this->dynamicRegions);
   // ss->frame = frame;
   // ss->checksum = SavestateChecksum(ss->getBackupLocs()); // really expensive calculation
   // INFO_LOG_FMT(BRAWLBACK, "Savestate for frame %i checksum is %i\n", ss->frame, ss->checksum);
@@ -216,17 +215,6 @@ void CEXIBrawlback::LoadState(bu32 rollbackFrame)
 
   // Fetch preservation blocks
   std::vector<PreserveBlock> blocks = {};
-
-  /*
-// Get preservation blocks
-int idx = 0;
-while (Common::swap32(preserveArr[idx]) != 0)
-{
-  PreserveBlock p = {Common::swap32(preserveArr[idx]), Common::swap32(preserveArr[idx + 1])};
-  blocks.push_back(p);
-  idx += 2;
-}
-  */
 
   // Load savestate
   activeSavestates[rollbackFrame]->Load(blocks);
@@ -1373,12 +1361,12 @@ void CEXIBrawlback::handleDumpAll(u8* payload)
     Memory::CopyFromEmuSwapped(data, addDumpAll.startAddress, 3);
     if (std::string((char*)data, 3) != "ARC")
     {
-      memRegions->memRegions.push_back(addDumpAll);
+      dynamicRegions.push_back(addDumpAll);
     }
   }
   else
   {
-    memRegions->memRegions.push_back(addDumpAll);
+    dynamicRegions.push_back(addDumpAll);
   }
 }
 
@@ -1399,12 +1387,12 @@ void CEXIBrawlback::handleAlloc(u8* payload)
     Memory::CopyFromEmuSwapped(data, addAlloc.startAddress, 3);
     if (std::string((char*)data, 3) != "ARC")
     {
-      memRegions->memRegions.push_back(addAlloc);
+      dynamicRegions.push_back(addAlloc);
     }
   }
   else
   {
-    memRegions->memRegions.push_back(addAlloc);
+    dynamicRegions.push_back(addAlloc);
   }
 }
 
@@ -1412,8 +1400,8 @@ void CEXIBrawlback::handleDealloc(u8* payload)
 {
   SavestateMemRegionInfo dealloc;
   memcpy(&dealloc, payload, sizeof(SavestateMemRegionInfo));
-  SwapEndianSavestateMemRegionInfo(dealloc);
-  deallocRegions.push_back(dealloc);
+  auto startAddress = swap_endian(dealloc.address);
+  dynamicRegions.erase(std::remove_if(std::begin(staticRegions), std::end(staticRegions), [&startAddress](ssBackupLoc obj) { return (obj.startAddress == startAddress); }), std::end(staticRegions));
 }
 void CEXIBrawlback::handleFrameCounterLoc(u8* payload)
 {
@@ -1426,7 +1414,7 @@ void CEXIBrawlback::handleFrameCounterLoc(u8* payload)
   frameCounterLocationRegion.endAddress = frameCounterLocation + sizeof(bu32);
   frameCounterLocationRegion.data = nullptr;
   frameCounterLocationRegion.regionName = "FrameCounter";
-  memRegions->memRegions.push_back(frameCounterLocationRegion);
+  staticRegions.push_back(frameCounterLocationRegion);
 }
 void CEXIBrawlback::handleCancelMatchmaking()
 {
@@ -1435,15 +1423,6 @@ void CEXIBrawlback::handleCancelMatchmaking()
   {
     this->matchmaking_thread.join();
   }
-}
-void CEXIBrawlback::handleAllDeallocs()
-{
-  for (int i = 0; i < deallocRegions.size(); i++)
-  {
-    bu32 startAddress = deallocRegions[i].address;
-    memRegions->memRegions.erase(std::remove_if(std::begin(memRegions->memRegions), std::end(memRegions->memRegions), [&startAddress](ssBackupLoc obj) { return (obj.startAddress == startAddress); }), std::end(memRegions->memRegions));
-  }
-  deallocRegions.clear();
 }
     // recieve data from game into emulator
 void CEXIBrawlback::DMAWrite(u32 address, u32 size)
@@ -1523,9 +1502,6 @@ void CEXIBrawlback::DMAWrite(u32 address, u32 size)
     break;
   case CMD_CANCEL_MATCHMAKING:
     handleCancelMatchmaking();
-    break;
-  case CMD_ADD_DEALLOCS:
-    handleAllDeallocs();
     break;
   // just using these CMD's to track frame times lol
   case CMD_TIMER_START:
