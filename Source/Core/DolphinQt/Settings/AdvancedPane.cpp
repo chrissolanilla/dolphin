@@ -204,7 +204,8 @@ void AdvancedPane::ConnectLayout()
 
   m_ram_override_checkbox->setChecked(Config::Get(Config::MAIN_RAM_OVERRIDE_ENABLE));
   connect(m_ram_override_checkbox, &QCheckBox::toggled, [this](bool enable_ram_override) {
-    Config::SetBaseOrCurrent(Config::MAIN_RAM_OVERRIDE_ENABLE, enable_ram_override);
+    // Brawlback: replace enable_ram_override with true to always have override on
+    Config::SetBaseOrCurrent(Config::MAIN_RAM_OVERRIDE_ENABLE, true);
     Update();
   });
 
@@ -215,7 +216,8 @@ void AdvancedPane::ConnectLayout()
   });
 
   connect(m_mem2_override_slider, &QSlider::valueChanged, [this](int slider_value) {
-    const u32 mem2_size = m_mem2_override_slider->value() * 0x100000;
+    // Brawlback: mem2_size is always set to 128 instead of m_mem2_override_slider->value()
+    const u32 mem2_size = 128 * 0x100000;
     Config::SetBaseOrCurrent(Config::MAIN_MEM2_SIZE, mem2_size);
     Update();
   });
@@ -240,7 +242,8 @@ void AdvancedPane::Update()
 {
   const bool running = Core::GetState() != Core::State::Uninitialized;
   const bool enable_cpu_clock_override_widgets = Config::Get(Config::MAIN_OVERCLOCK_ENABLE);
-  const bool enable_ram_override_widgets = Config::Get(Config::MAIN_RAM_OVERRIDE_ENABLE);
+  // Brawlback: don't need to be able to tell  if RAM Overide is on as it always is
+  // const bool enable_ram_override_widgets = Config::Get(Config::MAIN_RAM_OVERRIDE_ENABLE);
   const bool enable_custom_rtc_widgets = Config::Get(Config::MAIN_CUSTOM_RTC_ENABLE) && !running;
 
   const std::vector<PowerPC::CPUCore>& available_cpu_cores = PowerPC::AvailableCPUCores();
@@ -280,10 +283,16 @@ void AdvancedPane::Update()
     return tr("%1% (%2 MHz)").arg(QString::number(percent), QString::number(clock));
   }());
 
-  m_ram_override_checkbox->setEnabled(!running);
 
-  m_mem1_override_slider->setEnabled(enable_ram_override_widgets && !running);
-  m_mem1_override_slider_label->setEnabled(enable_ram_override_widgets && !running);
+  //Brawlback: changed setEnabled from !running to false
+  m_ram_override_checkbox->setEnabled(false);
+
+  // Brawlback: change setEnable to be disabled instead of dependent on ram_override_widgets and running value (is always on now)
+  // Old lines:
+  // m_mem1_override_slider->setEnabled(enable_ram_override_widgets && !running);
+  // m_mem1_override_slider_label->setEnabled(enable_ram_override_widgets && !running);
+  m_mem1_override_slider->setEnabled(false);
+  m_mem1_override_slider_label->setEnabled(false);
 
   {
     const QSignalBlocker blocker(m_mem1_override_slider);
@@ -296,8 +305,12 @@ void AdvancedPane::Update()
     return tr("%1 MB (MEM1)").arg(QString::number(mem1_size));
   }());
 
-  m_mem2_override_slider->setEnabled(enable_ram_override_widgets && !running);
-  m_mem2_override_slider_label->setEnabled(enable_ram_override_widgets && !running);
+  // Brawlback: change to grey out slider for mem2
+  // Old Lines:
+  // m_mem2_override_slider->setEnabled(enable_ram_override_widgets && !running);
+  // m_mem2_override_slider_label->setEnabled(enable_ram_override_widgets && !running);
+  m_mem2_override_slider->setEnabled(false);
+  m_mem2_override_slider_label->setEnabled(false);
 
   {
     const QSignalBlocker blocker(m_mem2_override_slider);
