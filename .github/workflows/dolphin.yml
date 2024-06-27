@@ -28,7 +28,7 @@ jobs:
            sound-touch \
            hidapi \
            qt@6
-           python3 -m pip install setuptools
+           python3 -m pip install setuptools --break-system-packages --user 
     - name: Configure CMake
       run: |
            export LIBRARY_PATH=$LIBRARY_PATH:/usr/local/lib
