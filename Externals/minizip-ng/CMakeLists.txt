@@ -1,3 +1,4 @@
+include(CheckFunctionExists)
 project(minizip C)
 
 add_library(minizip STATIC

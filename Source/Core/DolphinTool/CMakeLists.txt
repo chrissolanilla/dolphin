@@ -19,6 +19,7 @@ PRIVATE
   uicommon
   cpp-optparse
   fmt::fmt
+	z
 )
 
 if(MSVC)

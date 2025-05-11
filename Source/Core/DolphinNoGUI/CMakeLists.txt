@@ -30,6 +30,7 @@ PRIVATE
   core
   uicommon
   cpp-optparse
+	z
 )
 
 if(APPLE)

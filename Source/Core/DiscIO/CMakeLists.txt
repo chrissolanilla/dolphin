@@ -78,6 +78,7 @@ PRIVATE
   minizip::minizip
   pugixml
   ZLIB::ZLIB
+	z
 )
 
 if(MSVC)
